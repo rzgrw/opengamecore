@@ -14,6 +14,42 @@ pub fn view<'a>(
 ) -> Element<'a, Message> {
     let header = text("Settings").size(24).color(theme::TEXT_PRIMARY);
 
+    // Library section
+    let library_header = text("Library").size(18).color(theme::TEXT_PRIMARY);
+
+    let export_btn = button(
+        text("Export Library").size(14).color(theme::ACCENT),
+    )
+    .on_press(Message::ExportLibrary)
+    .padding([8, 16])
+    .style(|_theme, _status| button::Style {
+        background: Some(Background::Color(iced::Color::from_rgba(
+            1.0, 1.0, 1.0, 0.05,
+        ))),
+        text_color: theme::ACCENT,
+        border: Border::default().rounded(6),
+        ..button::Style::default()
+    });
+
+    let import_btn = button(
+        text("Import Library").size(14).color(theme::ACCENT),
+    )
+    .on_press(Message::ImportLibrary)
+    .padding([8, 16])
+    .style(|_theme, _status| button::Style {
+        background: Some(Background::Color(iced::Color::from_rgba(
+            1.0, 1.0, 1.0, 0.05,
+        ))),
+        text_color: theme::ACCENT,
+        border: Border::default().rounded(6),
+        ..button::Style::default()
+    });
+
+    let library_section = column![
+        row![export_btn, import_btn].spacing(8),
+    ]
+    .spacing(8);
+
     // Wine installations section
     let wine_header = text("Wine Installations")
         .size(18)
@@ -159,6 +195,8 @@ pub fn view<'a>(
     .spacing(8);
 
     let content = column![
+        library_header,
+        library_section,
         wine_header,
         wine_list,
         add_wine_btn,

@@ -57,6 +57,13 @@ pub enum Message {
     DownloadDxvk,
     DxvkDownloaded(Option<PathBuf>),
 
+    // Library import/export
+    ExportLibrary,
+    ImportLibrary,
+    ExportLibraryPath(Option<String>),
+    ImportLibraryPath(Option<String>),
+    LibraryImported(usize),
+
     // First Run
     StartFirstRun,
     SkipFirstRun,
@@ -432,6 +439,55 @@ impl App {
             }
             Message::DxvkDownloaded(path) => {
                 self.dxvk_dir = path;
+            }
+
+            // Library import/export
+            Message::ExportLibrary => {
+                return Task::perform(
+                    async {
+                        let handle = rfd::AsyncFileDialog::new()
+                            .set_file_name("opengamecore-library.toml")
+                            .save_file()
+                            .await;
+                        handle.map(|h| h.path().to_string_lossy().to_string())
+                    },
+                    Message::ExportLibraryPath,
+                );
+            }
+            Message::ExportLibraryPath(Some(path)) => {
+                let _ = opengamecore_lib::library::export_library(
+                    &self.library,
+                    std::path::Path::new(&path),
+                );
+            }
+            Message::ExportLibraryPath(None) => {}
+            Message::ImportLibrary => {
+                return Task::perform(
+                    async {
+                        let handle = rfd::AsyncFileDialog::new()
+                            .set_title("Import Game Library")
+                            .add_filter("TOML", &["toml"])
+                            .pick_file()
+                            .await;
+                        handle.map(|h| h.path().to_string_lossy().to_string())
+                    },
+                    Message::ImportLibraryPath,
+                );
+            }
+            Message::ImportLibraryPath(Some(path)) => {
+                let count = opengamecore_lib::library::import_library(
+                    &mut self.library,
+                    std::path::Path::new(&path),
+                )
+                .unwrap_or(0);
+                if let Ok(games_path) = opengamecore_lib::paths::games_path() {
+                    let _ = self.library.save(&games_path);
+                }
+                return Task::done(Message::LibraryImported(count));
+            }
+            Message::ImportLibraryPath(None) => {}
+            Message::LibraryImported(count) => {
+                eprintln!("Imported {} game(s) into library", count);
             }
 
             // First Run

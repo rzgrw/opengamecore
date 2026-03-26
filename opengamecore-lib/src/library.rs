@@ -97,6 +97,27 @@ pub fn slugify(name: &str) -> String {
     slug::slugify(name)
 }
 
+/// Export the game library to a file path
+pub fn export_library(library: &GameLibrary, path: &std::path::Path) -> Result<()> {
+    let content = toml::to_string_pretty(library)?;
+    std::fs::write(path, content)?;
+    Ok(())
+}
+
+/// Import games from a file, merging with existing library (skips duplicates by slug)
+pub fn import_library(existing: &mut GameLibrary, path: &std::path::Path) -> Result<usize> {
+    let content = std::fs::read_to_string(path)?;
+    let imported: GameLibrary = toml::from_str(&content)?;
+    let mut count = 0;
+    for game in imported.games {
+        if existing.find(&game.slug).is_none() {
+            existing.add(game);
+            count += 1;
+        }
+    }
+    Ok(count)
+}
+
 /// Copy an image file to the icons directory, returning the destination path.
 pub fn set_game_icon(slug: &str, source: &std::path::Path) -> Result<std::path::PathBuf> {
     let icons_dir = crate::paths::icons_dir()?;
@@ -189,5 +210,23 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let lib = GameLibrary::load(&dir.path().join("nope.toml")).unwrap();
         assert!(lib.games.is_empty());
+    }
+
+    #[test]
+    fn export_and_import() {
+        let dir = TempDir::new().unwrap();
+        let export_path = dir.path().join("export.toml");
+
+        let mut lib = GameLibrary::default();
+        lib.add(make_game("Game One"));
+        lib.add(make_game("Game Two"));
+        export_library(&lib, &export_path).unwrap();
+
+        let mut target = GameLibrary::default();
+        target.add(make_game("Game One")); // already exists
+        let count = import_library(&mut target, &export_path).unwrap();
+
+        assert_eq!(count, 1); // only Game Two imported
+        assert_eq!(target.games.len(), 2);
     }
 }
