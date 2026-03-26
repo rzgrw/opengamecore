@@ -1,5 +1,5 @@
 [workspace]
-members = ["opengamecore-lib", "opengamecore-app"]
+members = ["opengamecore-lib", "opengamecore-app", "opengamecore-cli"]
 resolver = "2"
 
 [workspace.package]

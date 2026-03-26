@@ -1,0 +1,15 @@
+[package]
+name = "opengamecore-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ogc"
+path = "src/main.rs"
+
+[dependencies]
+opengamecore-lib = { path = "../opengamecore-lib" }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+chrono = { version = "0.4", features = ["serde"] }
