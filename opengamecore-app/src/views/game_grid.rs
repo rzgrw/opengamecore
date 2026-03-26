@@ -1,1 +1,102 @@
-// Implemented in Task 11
+use iced::widget::{button, column, container, row, text, Scrollable};
+use iced::{Background, Border, Element, Length};
+
+use opengamecore_lib::Game;
+
+use crate::app::Message;
+use crate::theme;
+
+pub fn view(games: &[Game]) -> Element<'_, Message> {
+    let header = row![
+        text("All Games").size(24).color(theme::TEXT_PRIMARY),
+        iced::widget::horizontal_space(),
+        button(
+            text("+ Add Game").size(14).color(theme::BUTTON_GREEN_TEXT)
+        )
+        .on_press(Message::OpenAddGame)
+        .padding([8, 16])
+        .style(|_theme, _status| button::Style {
+            background: Some(Background::Color(theme::BUTTON_GREEN)),
+            text_color: theme::BUTTON_GREEN_TEXT,
+            border: Border::default().rounded(6),
+            ..button::Style::default()
+        })
+    ]
+    .align_y(iced::Alignment::Center)
+    .spacing(12);
+
+    let content: Element<'_, Message> = if games.is_empty() {
+        container(
+            column![
+                text("No games yet").size(18).color(theme::TEXT_SECONDARY),
+                text("Click \"+ Add Game\" to get started")
+                    .size(14)
+                    .color(theme::TEXT_SECONDARY),
+            ]
+            .spacing(8)
+            .align_x(iced::Alignment::Center),
+        )
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .into()
+    } else {
+        let mut cards = column![].spacing(12);
+        for game in games {
+            let slug = game.slug.clone();
+            let card = container(
+                row![
+                    container(text("G").size(20).color(theme::ACCENT))
+                        .width(48)
+                        .height(48)
+                        .center_x(48)
+                        .center_y(48)
+                        .style(|_theme| container::Style {
+                            background: Some(Background::Color(
+                                iced::Color::from_rgba(1.0, 1.0, 1.0, 0.05),
+                            )),
+                            border: Border::default().rounded(8),
+                            ..container::Style::default()
+                        }),
+                    column![
+                        text(&game.name).size(16).color(theme::TEXT_PRIMARY),
+                        text(format!("Wine: {}", &game.wine_config))
+                            .size(12)
+                            .color(theme::TEXT_SECONDARY),
+                    ]
+                    .spacing(4),
+                    iced::widget::horizontal_space(),
+                    button(
+                        text("Play").size(14).color(theme::BUTTON_GREEN_TEXT)
+                    )
+                    .on_press(Message::PlayGame(slug))
+                    .padding([8, 20])
+                    .style(|_theme, _status| button::Style {
+                        background: Some(Background::Color(theme::BUTTON_GREEN)),
+                        text_color: theme::BUTTON_GREEN_TEXT,
+                        border: Border::default().rounded(6),
+                        ..button::Style::default()
+                    })
+                ]
+                .spacing(12)
+                .align_y(iced::Alignment::Center),
+            )
+            .padding(12)
+            .width(Length::Fill)
+            .style(|_theme| container::Style {
+                background: Some(Background::Color(theme::BG_CARD)),
+                border: Border::default().rounded(8),
+                ..container::Style::default()
+            });
+
+            cards = cards.push(card);
+        }
+        Scrollable::new(cards).into()
+    };
+
+    column![header, content]
+        .spacing(16)
+        .padding(24)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
