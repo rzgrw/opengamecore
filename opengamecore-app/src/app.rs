@@ -33,6 +33,8 @@ pub enum Message {
     AddGameNameChanged(String),
     AddGameBrowse,
     AddGamePathSelected(Option<String>),
+    AddGameBrowseIcon,
+    AddGameIconSelected(Option<String>),
     ConfirmAddGame,
 
     // Game actions
@@ -197,6 +199,24 @@ impl App {
                     state.path = path;
                 }
             }
+            Message::AddGameBrowseIcon => {
+                return Task::perform(
+                    async {
+                        let handle = rfd::AsyncFileDialog::new()
+                            .set_title("Select game icon")
+                            .add_filter("Images", &["png", "jpg", "jpeg", "webp", "bmp"])
+                            .pick_file()
+                            .await;
+                        handle.map(|h| h.path().to_string_lossy().to_string())
+                    },
+                    Message::AddGameIconSelected,
+                );
+            }
+            Message::AddGameIconSelected(path) => {
+                if let Some(ref mut state) = self.add_game {
+                    state.icon_path = path;
+                }
+            }
             Message::ConfirmAddGame => {
                 if let Some(state) = self.add_game.take() {
                     let slug = opengamecore_lib::library::slugify(&state.name);
@@ -208,6 +228,15 @@ impl App {
 
                     let exe = state.path.unwrap_or_default();
 
+                    let icon_path = state.icon_path.and_then(|ip| {
+                        opengamecore_lib::library::set_game_icon(
+                            &slug,
+                            std::path::Path::new(&ip),
+                        )
+                        .ok()
+                        .map(|p| p.to_string_lossy().to_string())
+                    });
+
                     let game = Game {
                         name: state.name,
                         slug: slug.clone(),
@@ -217,6 +246,7 @@ impl App {
                         env: HashMap::new(),
                         added_at: chrono::Utc::now(),
                         last_played: None,
+                        icon_path,
                     };
 
                     self.library.add(game);

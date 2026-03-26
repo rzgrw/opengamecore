@@ -16,6 +16,7 @@ pub struct AddGameState {
     pub tab: AddGameTab,
     pub name: String,
     pub path: Option<String>,
+    pub icon_path: Option<String>,
 }
 
 impl Default for AddGameState {
@@ -24,6 +25,7 @@ impl Default for AddGameState {
             tab: AddGameTab::Installer,
             name: String::new(),
             path: None,
+            icon_path: None,
         }
     }
 }
@@ -115,6 +117,37 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
         .padding(8)
         .size(14);
 
+    let icon_display = state
+        .icon_path
+        .as_deref()
+        .unwrap_or("No icon selected");
+
+    let icon_row = row![
+        container(text(icon_display).size(13).color(theme::TEXT_SECONDARY))
+            .padding([8, 12])
+            .width(Length::Fill)
+            .style(|_theme| container::Style {
+                background: Some(Background::Color(iced::Color::from_rgba(
+                    0.0, 0.0, 0.0, 0.3
+                ))),
+                border: Border::default().rounded(4),
+                ..container::Style::default()
+            }),
+        button(text("Browse").size(14).color(theme::TEXT_PRIMARY))
+            .on_press(Message::AddGameBrowseIcon)
+            .padding([8, 16])
+            .style(|_theme, _status| button::Style {
+                background: Some(Background::Color(iced::Color::from_rgba(
+                    1.0, 1.0, 1.0, 0.1
+                ))),
+                text_color: theme::TEXT_PRIMARY,
+                border: Border::default().rounded(4),
+                ..button::Style::default()
+            })
+    ]
+    .spacing(8)
+    .align_y(iced::Alignment::Center);
+
     let can_add = !state.name.is_empty() && state.path.is_some();
 
     let mut add_btn = button(
@@ -154,6 +187,8 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
             browse_row,
             text("Game Name").size(13).color(theme::TEXT_SECONDARY),
             name_input,
+            text("Icon (optional)").size(13).color(theme::TEXT_SECONDARY),
+            icon_row,
             action_row,
         ]
         .spacing(12)

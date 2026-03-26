@@ -27,6 +27,8 @@ pub struct Game {
     pub added_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_played: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_path: Option<String>,
 }
 
 fn default_wine_config() -> String {
@@ -93,6 +95,18 @@ pub fn slugify(name: &str) -> String {
     slug::slugify(name)
 }
 
+/// Copy an image file to the icons directory, returning the destination path.
+pub fn set_game_icon(slug: &str, source: &std::path::Path) -> Result<std::path::PathBuf> {
+    let icons_dir = crate::paths::icons_dir()?;
+    std::fs::create_dir_all(&icons_dir)?;
+    let ext = source.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png");
+    let dest = icons_dir.join(format!("{}.{}", slug, ext));
+    std::fs::copy(source, &dest)?;
+    Ok(dest)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,6 +122,7 @@ mod tests {
             env: HashMap::new(),
             added_at: Utc::now(),
             last_played: None,
+            icon_path: None,
         }
     }
 
