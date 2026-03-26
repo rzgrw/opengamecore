@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use iced::Color;
 
 pub const BG_DARK: Color = Color::from_rgb(0.1, 0.1, 0.18);

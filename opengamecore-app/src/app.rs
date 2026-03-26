@@ -20,6 +20,7 @@ pub enum Screen {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum Message {
     // Navigation
     NavigateTo(Screen),

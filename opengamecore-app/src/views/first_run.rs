@@ -4,8 +4,9 @@ use iced::{Background, Border, Element, Length};
 use crate::app::Message;
 use crate::theme;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum FirstRunPhase {
+    #[default]
     Welcome,
     Downloading { progress: f32, status: String },
     CreatingTemplate,
@@ -13,11 +14,6 @@ pub enum FirstRunPhase {
     Error(String),
 }
 
-impl Default for FirstRunPhase {
-    fn default() -> Self {
-        Self::Welcome
-    }
-}
 
 pub fn view(phase: &FirstRunPhase) -> Element<'_, Message> {
     let content: Element<'_, Message> = match phase {
