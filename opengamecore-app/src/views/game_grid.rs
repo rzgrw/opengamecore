@@ -71,14 +71,39 @@ pub fn view(games: &[Game]) -> Element<'_, Message> {
                 }
             };
 
+            let wine_row: Element<'_, Message> = if game.dxvk_enabled {
+                row![
+                    text(format!("Wine: {}", &game.wine_config))
+                        .size(12)
+                        .color(theme::TEXT_SECONDARY),
+                    container(
+                        text("DXVK").size(10).color(theme::ACCENT),
+                    )
+                    .padding([2, 6])
+                    .style(|_theme| container::Style {
+                        background: Some(Background::Color(iced::Color::from_rgba(
+                            0.39, 1.0, 0.855, 0.12,
+                        ))),
+                        border: Border::default().rounded(4),
+                        ..container::Style::default()
+                    }),
+                ]
+                .spacing(6)
+                .align_y(iced::Alignment::Center)
+                .into()
+            } else {
+                text(format!("Wine: {}", &game.wine_config))
+                    .size(12)
+                    .color(theme::TEXT_SECONDARY)
+                    .into()
+            };
+
             let card = container(
                 row![
                     icon_widget,
                     column![
                         text(&game.name).size(16).color(theme::TEXT_PRIMARY),
-                        text(format!("Wine: {}", &game.wine_config))
-                            .size(12)
-                            .color(theme::TEXT_SECONDARY),
+                        wine_row,
                     ]
                     .spacing(4),
                     iced::widget::horizontal_space(),

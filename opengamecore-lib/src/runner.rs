@@ -5,6 +5,7 @@ use std::process::Stdio;
 use tokio::process::{Child, Command};
 
 use crate::config::WineConfig;
+use crate::dxvk;
 use crate::error::{Error, Result};
 
 /// Everything needed to launch a game.
@@ -22,8 +23,12 @@ impl LaunchConfig {
         bottle_dir: &Path,
         exe_relative: &str,
         game_env: &HashMap<String, String>,
+        dxvk_enabled: bool,
     ) -> Self {
         let mut env = wine.env_overrides.clone();
+        if dxvk_enabled {
+            env.extend(dxvk::env_overrides());
+        }
         env.extend(game_env.clone());
 
         Self {
@@ -74,6 +79,7 @@ mod tests {
             Path::new("/bottles/game"),
             "drive_c/game.exe",
             &game_env,
+            false,
         );
 
         assert_eq!(config.env.get("WINEDEBUG").unwrap(), "-all");
@@ -99,9 +105,52 @@ mod tests {
             Path::new("/bottles/game"),
             "drive_c/game.exe",
             &game_env,
+            false,
         );
 
         assert_eq!(config.env.get("KEY").unwrap(), "game-val");
+    }
+
+    #[test]
+    fn launch_config_dxvk_enabled_sets_dll_overrides() {
+        let wine = WineConfig {
+            name: "test".into(),
+            binary_path: "/bin/wine".into(),
+            env_overrides: HashMap::new(),
+        };
+        let game_env = HashMap::new();
+
+        let config = LaunchConfig::new(
+            &wine,
+            Path::new("/bottles/game"),
+            "drive_c/game.exe",
+            &game_env,
+            true,
+        );
+
+        let overrides = config.env.get("WINEDLLOVERRIDES").unwrap();
+        assert!(overrides.contains("d3d11=n"));
+        assert!(overrides.contains("dxgi=n"));
+    }
+
+    #[test]
+    fn launch_config_dxvk_disabled_no_dll_overrides() {
+        let wine = WineConfig {
+            name: "test".into(),
+            binary_path: "/bin/wine".into(),
+            env_overrides: HashMap::new(),
+        };
+        let game_env = HashMap::new();
+
+        let config = LaunchConfig::new(
+            &wine,
+            Path::new("/bottles/game"),
+            "drive_c/game.exe",
+            &game_env,
+            false,
+        );
+
+        assert!(config.env.get("WINEDLLOVERRIDES").is_none());
     }
 
     #[tokio::test]

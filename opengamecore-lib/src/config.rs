@@ -17,6 +17,12 @@ pub struct AppConfig {
 pub struct WineSettings {
     pub default: String,
     pub download_urls: Vec<String>,
+    #[serde(default = "default_dxvk_url")]
+    pub dxvk_download_url: String,
+}
+
+fn default_dxvk_url() -> String {
+    "https://github.com/doitsujin/dxvk/releases/download/v2.5.3/dxvk-2.5.3.tar.gz".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +54,7 @@ impl Default for WineSettings {
             download_urls: vec![
                 "https://github.com/Gcenx/macOS_Wine_builds/releases/download/v9.0/wine-devel-9.0-osx64.tar.xz".into(),
             ],
+            dxvk_download_url: default_dxvk_url(),
         }
     }
 }

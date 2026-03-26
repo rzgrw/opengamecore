@@ -29,6 +29,8 @@ pub struct Game {
     pub last_played: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_path: Option<String>,
+    #[serde(default)]
+    pub dxvk_enabled: bool,
 }
 
 fn default_wine_config() -> String {
@@ -123,6 +125,7 @@ mod tests {
             added_at: Utc::now(),
             last_played: None,
             icon_path: None,
+            dxvk_enabled: false,
         }
     }
 

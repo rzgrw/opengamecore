@@ -1,5 +1,6 @@
 pub mod bottle;
 pub mod config;
+pub mod dxvk;
 pub mod error;
 pub mod library;
 pub mod paths;

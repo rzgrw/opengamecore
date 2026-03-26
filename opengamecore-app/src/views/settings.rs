@@ -10,6 +10,7 @@ pub fn view<'a>(
     wine_configs: &'a [WineConfig],
     download_urls: &'a [String],
     default_wine: &'a str,
+    dxvk_dir: Option<&'a std::path::Path>,
 ) -> Element<'a, Message> {
     let header = text("Settings").size(24).color(theme::TEXT_PRIMARY);
 
@@ -126,12 +127,45 @@ pub fn view<'a>(
         );
     }
 
+    // DXVK section
+    let dxvk_header = text("DXVK / MoltenVK").size(18).color(theme::TEXT_PRIMARY);
+
+    let dxvk_status_text = if dxvk_dir.is_some() {
+        text("DXVK is downloaded and ready")
+            .size(14)
+            .color(theme::ACCENT)
+    } else {
+        text("DXVK is not downloaded")
+            .size(14)
+            .color(theme::TEXT_SECONDARY)
+    };
+
+    let download_dxvk_btn = button(
+        text("Download DXVK").size(14).color(theme::BUTTON_GREEN_TEXT),
+    )
+    .on_press(Message::DownloadDxvk)
+    .padding([8, 16])
+    .style(|_theme, _status| button::Style {
+        background: Some(Background::Color(theme::BUTTON_GREEN)),
+        text_color: theme::BUTTON_GREEN_TEXT,
+        border: Border::default().rounded(6),
+        ..button::Style::default()
+    });
+
+    let dxvk_section = column![
+        dxvk_status_text,
+        download_dxvk_btn,
+    ]
+    .spacing(8);
+
     let content = column![
         wine_header,
         wine_list,
         add_wine_btn,
         sources_header,
         sources_list,
+        dxvk_header,
+        dxvk_section,
     ]
     .spacing(16);
 

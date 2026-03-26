@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use iced::widget::{container, row, text};
 use iced::{Element, Length, Task, Theme};
@@ -51,6 +52,11 @@ pub enum Message {
     AddCustomWinePath,
     CustomWinePathSelected(Option<String>),
 
+    // DXVK
+    ToggleGameDxvk(String),
+    DownloadDxvk,
+    DxvkDownloaded(Option<PathBuf>),
+
     // First Run
     StartFirstRun,
     SkipFirstRun,
@@ -78,6 +84,7 @@ pub struct App {
     bottles: Vec<BottleInfo>,
     wine_configs: Vec<WineConfig>,
     first_run_phase: FirstRunPhase,
+    dxvk_dir: Option<PathBuf>,
 }
 
 impl App {
@@ -91,6 +98,7 @@ impl App {
             bottles: Vec::new(),
             wine_configs: Vec::new(),
             first_run_phase: FirstRunPhase::default(),
+            dxvk_dir: None,
         };
 
         let task = Task::perform(
@@ -247,6 +255,7 @@ impl App {
                         added_at: chrono::Utc::now(),
                         last_played: None,
                         icon_path,
+                        dxvk_enabled: false,
                     };
 
                     self.library.add(game);
@@ -292,6 +301,7 @@ impl App {
                                 &bottle_dir,
                                 &game.exe,
                                 &game.env,
+                                game.dxvk_enabled,
                             );
 
                             let slug_clone = slug.clone();
@@ -394,6 +404,34 @@ impl App {
                         env_overrides: HashMap::new(),
                     });
                 }
+            }
+
+            // DXVK
+            Message::ToggleGameDxvk(slug) => {
+                if let Some(game) = self.library.find_mut(&slug) {
+                    game.dxvk_enabled = !game.dxvk_enabled;
+                    if let Ok(path) = opengamecore_lib::paths::games_path() {
+                        let _ = self.library.save(&path);
+                    }
+                }
+            }
+            Message::DownloadDxvk => {
+                let url = self.config.wine.dxvk_download_url.clone();
+                return Task::perform(
+                    async move {
+                        let data_dir = match opengamecore_lib::paths::wine_dir() {
+                            Ok(d) => d,
+                            Err(_) => return None,
+                        };
+                        opengamecore_lib::dxvk::download_and_extract(&url, &data_dir)
+                            .await
+                            .ok()
+                    },
+                    Message::DxvkDownloaded,
+                );
+            }
+            Message::DxvkDownloaded(path) => {
+                self.dxvk_dir = path;
             }
 
             // First Run
@@ -507,6 +545,7 @@ impl App {
                 &self.wine_configs,
                 &self.config.wine.download_urls,
                 &self.config.wine.default,
+                self.dxvk_dir.as_deref(),
             ),
             Screen::FirstRun => unreachable!(),
         };
