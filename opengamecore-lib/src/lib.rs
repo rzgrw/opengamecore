@@ -1,7 +1,12 @@
+pub mod bottle;
 pub mod config;
 pub mod error;
-pub mod paths;
-pub mod bottle;
 pub mod library;
-pub mod wine;
+pub mod paths;
 pub mod runner;
+pub mod wine;
+
+pub use config::{AppConfig, WineConfig};
+pub use error::{Error, Result};
+pub use library::{Game, GameLibrary, InstallType};
+pub use runner::LaunchConfig;
