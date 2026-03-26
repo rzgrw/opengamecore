@@ -1,0 +1,11 @@
+[package]
+name = "opengamecore-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+opengamecore-lib = { path = "../opengamecore-lib" }
+iced = { version = "0.13", features = ["tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+rfd = "0.15"
