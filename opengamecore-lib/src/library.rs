@@ -45,8 +45,14 @@ pub struct GameLibrary {
 
 impl GameLibrary {
     pub fn load(path: &Path) -> Result<Self> {
+        // Try to restore from backup if file is missing or corrupt
+        let _ = crate::fs_utils::restore_from_backup(path);
+
         if path.exists() {
             let content = std::fs::read_to_string(path)?;
+            if content.trim().is_empty() {
+                return Ok(GameLibrary::default());
+            }
             let lib: GameLibrary = toml::from_str(&content)?;
             Ok(lib)
         } else {
@@ -59,7 +65,8 @@ impl GameLibrary {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(path, content)?;
+        crate::fs_utils::backup(path)?;
+        crate::fs_utils::atomic_write(path, &content)?;
         Ok(())
     }
 
@@ -100,7 +107,7 @@ pub fn slugify(name: &str) -> String {
 /// Export the game library to a file path
 pub fn export_library(library: &GameLibrary, path: &std::path::Path) -> Result<()> {
     let content = toml::to_string_pretty(library)?;
-    std::fs::write(path, content)?;
+    crate::fs_utils::atomic_write(path, &content)?;
     Ok(())
 }
 

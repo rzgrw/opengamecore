@@ -69,8 +69,14 @@ impl Default for AppSettings {
 
 impl AppConfig {
     pub fn load(path: &std::path::Path) -> Result<Self> {
+        // Try to restore from backup if file is missing or corrupt
+        let _ = crate::fs_utils::restore_from_backup(path);
+
         if path.exists() {
             let content = std::fs::read_to_string(path)?;
+            if content.trim().is_empty() {
+                return Ok(AppConfig::default());
+            }
             let config: AppConfig = toml::from_str(&content)?;
             Ok(config)
         } else {
@@ -83,7 +89,8 @@ impl AppConfig {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(path, content)?;
+        crate::fs_utils::backup(path)?;
+        crate::fs_utils::atomic_write(path, &content)?;
         Ok(())
     }
 }

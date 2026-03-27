@@ -2,6 +2,7 @@ pub mod bottle;
 pub mod config;
 pub mod dxvk;
 pub mod error;
+pub mod fs_utils;
 pub mod library;
 pub mod paths;
 pub mod runner;
