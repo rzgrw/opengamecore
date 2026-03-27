@@ -17,8 +17,53 @@ A macOS Wine game launcher written in Rust — clean UI, fast bottle cloning, an
 ## Requirements
 
 - macOS 12 Monterey or later
-- Rust 1.75+
 - Wine (via Homebrew or bundled build)
+- Rust 1.75+ (only for building from source)
+
+## Installation
+
+### Download (Recommended)
+
+Download the latest `.dmg` from [Releases](https://github.com/your-org/opengamecore/releases):
+- **Apple Silicon (M1/M2/M3):** `OpenGameCore-x.x.x-macOS-arm64.dmg`
+- **Intel:** `OpenGameCore-x.x.x-macOS-x86_64.dmg`
+
+Open the DMG and drag OpenGameCore to Applications.
+
+The CLI tool `ogc` is bundled inside the app at `OpenGameCore.app/Contents/MacOS/ogc`. To use it from Terminal:
+
+```sh
+# Option 1: Alias
+alias ogc="/Applications/OpenGameCore.app/Contents/MacOS/ogc"
+
+# Option 2: Symlink
+sudo ln -s /Applications/OpenGameCore.app/Contents/MacOS/ogc /usr/local/bin/ogc
+```
+
+### Homebrew
+
+```sh
+brew tap your-org/opengamecore
+brew install opengamecore
+```
+
+### Build from Source
+
+Requires Rust 1.75+:
+
+```sh
+git clone https://github.com/your-org/opengamecore.git
+cd opengamecore
+make release
+make install  # copies to /usr/local/bin
+```
+
+Or create a .app bundle:
+
+```sh
+./scripts/bundle-macos.sh
+# Output: target/release/OpenGameCore.app and .dmg
+```
 
 ## Quick Start
 

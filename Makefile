@@ -1,4 +1,4 @@
-.PHONY: build run test clippy fmt clean install
+.PHONY: build run test clippy fmt clean install bundle
 
 build:
 	cargo build --workspace
@@ -35,3 +35,7 @@ install: release
 uninstall:
 	rm -f /usr/local/bin/opengamecore /usr/local/bin/ogc
 	@echo "Uninstalled opengamecore and ogc"
+
+VERSION ?= 0.1.0
+bundle: release
+	./scripts/bundle-macos.sh $(VERSION)
