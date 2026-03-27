@@ -5,6 +5,11 @@ use opengamecore_lib::{
     bottle, library, paths, runner, wine, Game, GameLibrary, InstallType, LaunchConfig,
 };
 
+/// Exit code for user errors (bad input, game not found, etc.)
+const EXIT_USER_ERROR: i32 = 1;
+/// Exit code for system errors (IO, permissions, etc.)
+const EXIT_SYSTEM_ERROR: i32 = 2;
+
 #[derive(Parser)]
 #[command(name = "ogc", about = "OpenGameCore CLI - Wine game launcher for macOS")]
 struct Cli {
@@ -87,8 +92,8 @@ async fn main() {
 
     // Ensure app directories exist
     if let Err(e) = paths::ensure_dirs() {
-        eprintln!("Error creating app directories: {}", e);
-        std::process::exit(1);
+        eprintln!("Error creating app directories: {}", e.user_message());
+        std::process::exit(EXIT_SYSTEM_ERROR);
     }
 
     match cli.command {
@@ -111,15 +116,15 @@ fn load_library() -> GameLibrary {
     let games_path = match paths::games_path() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving games path: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving games path: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
     match GameLibrary::load(&games_path) {
         Ok(lib) => lib,
         Err(e) => {
-            eprintln!("Error loading library: {}", e);
-            std::process::exit(1);
+            eprintln!("Error loading library: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     }
 }
@@ -128,13 +133,13 @@ fn save_library(lib: &GameLibrary) {
     let games_path = match paths::games_path() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving games path: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving games path: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
     if let Err(e) = lib.save(&games_path) {
-        eprintln!("Error saving library: {}", e);
-        std::process::exit(1);
+        eprintln!("Error saving library: {}", e.user_message());
+        std::process::exit(EXIT_SYSTEM_ERROR);
     }
 }
 
@@ -159,6 +164,16 @@ fn cmd_list() {
 }
 
 fn cmd_add(name: &str, exe: &str, install_type_str: &str, icon: Option<&std::path::Path>) {
+    if name.trim().is_empty() {
+        eprintln!("Error: Game name cannot be empty.");
+        std::process::exit(EXIT_USER_ERROR);
+    }
+
+    if exe.trim().is_empty() {
+        eprintln!("Error: Game executable path cannot be empty.");
+        std::process::exit(EXIT_USER_ERROR);
+    }
+
     let install_type = match install_type_str {
         "installer" => InstallType::Installer,
         "portable" => InstallType::Portable,
@@ -168,7 +183,7 @@ fn cmd_add(name: &str, exe: &str, install_type_str: &str, icon: Option<&std::pat
                 "Unknown install type '{}'. Use: installer, portable, or folder",
                 other
             );
-            std::process::exit(1);
+            std::process::exit(EXIT_USER_ERROR);
         }
     };
 
@@ -179,7 +194,7 @@ fn cmd_add(name: &str, exe: &str, install_type_str: &str, icon: Option<&std::pat
     // Check for duplicate slug
     if lib.find(&slug).is_some() {
         eprintln!("A game with slug '{}' already exists.", slug);
-        std::process::exit(1);
+        std::process::exit(EXIT_USER_ERROR);
     }
 
     let game = Game {
@@ -202,22 +217,22 @@ fn cmd_add(name: &str, exe: &str, install_type_str: &str, icon: Option<&std::pat
     let template_dir = match paths::template_bottle_dir() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving template bottle dir: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving template bottle dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
     let bottle_dir = match paths::bottle_dir(&slug) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving bottle dir: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving bottle dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
     if template_dir.exists() {
         match bottle::create(&template_dir, &bottle_dir) {
             Ok(()) => println!("Bottle created for '{}'.", slug),
-            Err(e) => eprintln!("Warning: could not create bottle: {}", e),
+            Err(e) => eprintln!("Warning: could not create bottle: {}", e.user_message()),
         }
     } else {
         println!(
@@ -238,7 +253,7 @@ fn cmd_add(name: &str, exe: &str, install_type_str: &str, icon: Option<&std::pat
                 save_library(&lib2);
                 println!("Icon copied.");
             }
-            Err(e) => eprintln!("Warning: could not copy icon: {}", e),
+            Err(e) => eprintln!("Warning: could not copy icon: {}", e.user_message()),
         }
     }
 
@@ -249,8 +264,8 @@ fn cmd_remove(slug: &str) {
     let mut lib = load_library();
 
     if let Err(e) = lib.remove(slug) {
-        eprintln!("Error: {}", e);
-        std::process::exit(1);
+        eprintln!("Error: {}", e.user_message());
+        std::process::exit(EXIT_USER_ERROR);
     }
 
     save_library(&lib);
@@ -259,7 +274,7 @@ fn cmd_remove(slug: &str) {
     let bottle_dir = match paths::bottle_dir(slug) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Warning: could not resolve bottle dir: {}", e);
+            eprintln!("Warning: could not resolve bottle dir: {}", e.user_message());
             println!("Game '{}' removed from library.", slug);
             return;
         }
@@ -268,7 +283,7 @@ fn cmd_remove(slug: &str) {
     if bottle_dir.exists() {
         match bottle::delete(&bottle_dir) {
             Ok(()) => println!("Bottle deleted for '{}'.", slug),
-            Err(e) => eprintln!("Warning: could not delete bottle: {}", e),
+            Err(e) => eprintln!("Warning: could not delete bottle: {}", e.user_message()),
         }
     }
 
@@ -282,39 +297,39 @@ async fn cmd_run(slug: &str, dxvk: bool) {
         Some(g) => g,
         None => {
             eprintln!("Game '{}' not found. Use 'ogc list' to see available games.", slug);
-            std::process::exit(1);
+            std::process::exit(EXIT_USER_ERROR);
         }
     };
 
     let wine_dir = match paths::wine_dir() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving wine dir: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving wine dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
     let wine_configs = match wine::discover(&wine_dir) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("Error discovering Wine installations: {}", e);
-            std::process::exit(1);
+            eprintln!("Error discovering Wine installations: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
     let wine_config = match wine::resolve(&wine_configs, &game.wine_config) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
+            eprintln!("Error: {}", e.user_message());
+            std::process::exit(EXIT_USER_ERROR);
         }
     };
 
     let bottle_dir = match paths::bottle_dir(slug) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving bottle dir: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving bottle dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
@@ -330,8 +345,8 @@ async fn cmd_run(slug: &str, dxvk: bool) {
     let mut child = match runner::spawn(&launch_config) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("Error spawning game: {}", e);
-            std::process::exit(1);
+            eprintln!("Error spawning game: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
@@ -340,12 +355,13 @@ async fn cmd_run(slug: &str, dxvk: bool) {
             if status.success() {
                 println!("Game exited successfully.");
             } else {
-                println!("Game exited with status: {}", status);
+                eprintln!("Game exited with status: {}", status);
+                std::process::exit(EXIT_SYSTEM_ERROR);
             }
         }
         Err(e) => {
             eprintln!("Error waiting for game process: {}", e);
-            std::process::exit(1);
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     }
 }
@@ -354,16 +370,16 @@ fn cmd_wine() {
     let wine_dir = match paths::wine_dir() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving wine dir: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving wine dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
     let configs = match wine::discover(&wine_dir) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("Error discovering Wine installations: {}", e);
-            std::process::exit(1);
+            eprintln!("Error discovering Wine installations: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
@@ -384,16 +400,16 @@ fn cmd_bottles() {
     let bottles_dir = match paths::bottles_dir() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving bottles dir: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving bottles dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
     let bottles = match bottle::list(&bottles_dir) {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("Error listing bottles: {}", e);
-            std::process::exit(1);
+            eprintln!("Error listing bottles: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
@@ -411,11 +427,18 @@ fn cmd_bottles() {
 }
 
 fn cmd_reset_bottle(slug: &str) {
+    // Validate the game exists before attempting reset
+    let lib = load_library();
+    if lib.find(slug).is_none() {
+        eprintln!("Game '{}' not found. Use 'ogc list' to see available games.", slug);
+        std::process::exit(EXIT_USER_ERROR);
+    }
+
     let template_dir = match paths::template_bottle_dir() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving template bottle dir: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving template bottle dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
@@ -424,22 +447,22 @@ fn cmd_reset_bottle(slug: &str) {
             "Template bottle not found at {}. Run wine setup first.",
             template_dir.display()
         );
-        std::process::exit(1);
+        std::process::exit(EXIT_USER_ERROR);
     }
 
     let bottle_dir = match paths::bottle_dir(slug) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error resolving bottle dir: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resolving bottle dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 
     match bottle::reset(&template_dir, &bottle_dir) {
         Ok(()) => println!("Bottle for '{}' has been reset.", slug),
         Err(e) => {
-            eprintln!("Error resetting bottle: {}", e);
-            std::process::exit(1);
+            eprintln!("Error resetting bottle: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     }
 }
@@ -454,20 +477,25 @@ fn cmd_export(path: &std::path::Path) {
             lib.games.len()
         ),
         Err(e) => {
-            eprintln!("Error exporting library: {}", e);
-            std::process::exit(1);
+            eprintln!("Error exporting library: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     }
 }
 
 fn cmd_import(path: &std::path::Path) {
+    if !path.exists() {
+        eprintln!("Import file not found: {}", path.display());
+        std::process::exit(EXIT_USER_ERROR);
+    }
+
     let mut lib = load_library();
 
     let count = match library::import_library(&mut lib, path) {
         Ok(n) => n,
         Err(e) => {
-            eprintln!("Error importing library: {}", e);
-            std::process::exit(1);
+            eprintln!("Error importing library: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
         }
     };
 

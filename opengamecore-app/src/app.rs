@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use iced::widget::{container, row, text};
-use iced::{Element, Length, Task, Theme};
+use iced::widget::{button, column, container, row, text};
+use iced::{Background, Border, Element, Length, Task, Theme};
 
 use opengamecore_lib::bottle::BottleInfo;
 use opengamecore_lib::{
@@ -64,6 +64,10 @@ pub enum Message {
     ImportLibraryPath(Option<String>),
     LibraryImported(usize),
 
+    // Errors
+    ShowError(String),
+    DismissError,
+
     // First Run
     StartFirstRun,
     SkipFirstRun,
@@ -92,6 +96,8 @@ pub struct App {
     wine_configs: Vec<WineConfig>,
     first_run_phase: FirstRunPhase,
     dxvk_dir: Option<PathBuf>,
+    /// Currently displayed error, cleared on dismiss
+    error_message: Option<String>,
 }
 
 impl App {
@@ -106,6 +112,7 @@ impl App {
             wine_configs: Vec::new(),
             first_run_phase: FirstRunPhase::default(),
             dxvk_dir: None,
+            error_message: None,
         };
 
         let task = Task::perform(
@@ -153,6 +160,12 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::ShowError(msg) => {
+                self.error_message = Some(msg);
+            }
+            Message::DismissError => {
+                self.error_message = None;
+            }
             Message::NavigateTo(screen) => {
                 self.screen = screen;
             }
@@ -233,6 +246,27 @@ impl App {
                 }
             }
             Message::ConfirmAddGame => {
+                // Validate before proceeding
+                if let Some(ref state) = self.add_game {
+                    if state.name.trim().is_empty() {
+                        self.error_message = Some("Game name is required.".into());
+                        return Task::none();
+                    }
+                    if state.path.is_none() {
+                        self.error_message =
+                            Some("Please select a game executable or folder.".into());
+                        return Task::none();
+                    }
+                    let slug = opengamecore_lib::library::slugify(&state.name);
+                    if self.library.find(&slug).is_some() {
+                        self.error_message =
+                            Some(format!("A game named '{}' already exists.", state.name));
+                        return Task::none();
+                    }
+                }
+
+                self.error_message = None;
+
                 if let Some(state) = self.add_game.take() {
                     let slug = opengamecore_lib::library::slugify(&state.name);
                     let install_type = match state.tab {
@@ -244,12 +278,16 @@ impl App {
                     let exe = state.path.unwrap_or_default();
 
                     let icon_path = state.icon_path.and_then(|ip| {
-                        opengamecore_lib::library::set_game_icon(
+                        match opengamecore_lib::library::set_game_icon(
                             &slug,
                             std::path::Path::new(&ip),
-                        )
-                        .ok()
-                        .map(|p| p.to_string_lossy().to_string())
+                        ) {
+                            Ok(p) => Some(p.to_string_lossy().to_string()),
+                            Err(e) => {
+                                eprintln!("Warning: could not set game icon: {}", e);
+                                None
+                            }
+                        }
                     });
 
                     let game = Game {
@@ -269,7 +307,10 @@ impl App {
 
                     // Save library
                     if let Ok(path) = opengamecore_lib::paths::games_path() {
-                        let _ = self.library.save(&path);
+                        if let Err(e) = self.library.save(&path) {
+                            self.error_message =
+                                Some(format!("Failed to save library: {}", e));
+                        }
                     }
 
                     // Create bottle from template
@@ -277,7 +318,10 @@ impl App {
                         opengamecore_lib::paths::template_bottle_dir(),
                         opengamecore_lib::paths::bottle_dir(&slug),
                     ) {
-                        let _ = opengamecore_lib::bottle::create(&template, &bottle);
+                        if let Err(e) = opengamecore_lib::bottle::create(&template, &bottle) {
+                            self.error_message =
+                                Some(format!("Failed to create game bottle: {}", e));
+                        }
                     }
 
                     // Reload bottles
@@ -301,39 +345,60 @@ impl App {
                         &game.wine_config,
                     );
 
-                    if let Ok(wine) = wine {
-                        if let Ok(bottle_dir) = opengamecore_lib::paths::bottle_dir(&slug) {
-                            let config = LaunchConfig::new(
-                                &wine,
-                                &bottle_dir,
-                                &game.exe,
-                                &game.env,
-                                game.dxvk_enabled,
-                            );
+                    match wine {
+                        Ok(wine) => {
+                            match opengamecore_lib::paths::bottle_dir(&slug) {
+                                Ok(bottle_dir) => {
+                                    let config = LaunchConfig::new(
+                                        &wine,
+                                        &bottle_dir,
+                                        &game.exe,
+                                        &game.env,
+                                        game.dxvk_enabled,
+                                    );
 
-                            let slug_clone = slug.clone();
-                            // Update last_played
-                            if let Some(game_mut) = self.library.find_mut(&slug) {
-                                game_mut.last_played = Some(chrono::Utc::now());
-                                if let Ok(path) = opengamecore_lib::paths::games_path() {
-                                    let _ = self.library.save(&path);
-                                }
-                            }
-
-                            return Task::perform(
-                                async move {
-                                    match opengamecore_lib::runner::spawn(&config) {
-                                        Ok(mut child) => {
-                                            let _ = child.wait().await;
-                                        }
-                                        Err(e) => {
-                                            eprintln!("Failed to launch: {}", e);
+                                    let slug_clone = slug.clone();
+                                    // Update last_played
+                                    if let Some(game_mut) = self.library.find_mut(&slug) {
+                                        game_mut.last_played = Some(chrono::Utc::now());
+                                        if let Ok(path) =
+                                            opengamecore_lib::paths::games_path()
+                                        {
+                                            if let Err(e) = self.library.save(&path) {
+                                                self.error_message = Some(format!(
+                                                    "Failed to save play time: {}",
+                                                    e
+                                                ));
+                                            }
                                         }
                                     }
-                                    slug_clone
-                                },
-                                Message::GameExited,
-                            );
+
+                                    return Task::perform(
+                                        async move {
+                                            match opengamecore_lib::runner::spawn(&config) {
+                                                Ok(mut child) => {
+                                                    let _ = child.wait().await;
+                                                }
+                                                Err(e) => {
+                                                    eprintln!("Failed to launch: {}", e);
+                                                }
+                                            }
+                                            slug_clone
+                                        },
+                                        Message::GameExited,
+                                    );
+                                }
+                                Err(e) => {
+                                    self.error_message = Some(format!(
+                                        "Failed to resolve bottle directory: {}",
+                                        e
+                                    ));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            self.error_message =
+                                Some(e.user_message());
                         }
                     }
                 }
@@ -348,7 +413,10 @@ impl App {
                     opengamecore_lib::paths::template_bottle_dir(),
                     opengamecore_lib::paths::bottle_dir(&slug),
                 ) {
-                    let _ = opengamecore_lib::bottle::reset(&template, &bottle);
+                    if let Err(e) = opengamecore_lib::bottle::reset(&template, &bottle) {
+                        self.error_message =
+                            Some(format!("Failed to reset bottle: {}", e));
+                    }
                 }
                 return Task::perform(
                     async {
@@ -362,7 +430,10 @@ impl App {
             }
             Message::DeleteBottle(slug) => {
                 if let Ok(bottle) = opengamecore_lib::paths::bottle_dir(&slug) {
-                    let _ = opengamecore_lib::bottle::delete(&bottle);
+                    if let Err(e) = opengamecore_lib::bottle::delete(&bottle) {
+                        self.error_message =
+                            Some(format!("Failed to delete bottle: {}", e));
+                    }
                 }
                 return Task::perform(
                     async {
@@ -382,7 +453,10 @@ impl App {
             Message::SetDefaultWine(name) => {
                 self.config.wine.default = name;
                 if let Ok(path) = opengamecore_lib::paths::config_path() {
-                    let _ = self.config.save(&path);
+                    if let Err(e) = self.config.save(&path) {
+                        self.error_message =
+                            Some(format!("Failed to save settings: {}", e));
+                    }
                 }
             }
             Message::AddCustomWinePath => {
@@ -418,7 +492,10 @@ impl App {
                 if let Some(game) = self.library.find_mut(&slug) {
                     game.dxvk_enabled = !game.dxvk_enabled;
                     if let Ok(path) = opengamecore_lib::paths::games_path() {
-                        let _ = self.library.save(&path);
+                        if let Err(e) = self.library.save(&path) {
+                            self.error_message =
+                                Some(format!("Failed to save DXVK setting: {}", e));
+                        }
                     }
                 }
             }
@@ -455,10 +532,13 @@ impl App {
                 );
             }
             Message::ExportLibraryPath(Some(path)) => {
-                let _ = opengamecore_lib::library::export_library(
+                if let Err(e) = opengamecore_lib::library::export_library(
                     &self.library,
                     std::path::Path::new(&path),
-                );
+                ) {
+                    self.error_message =
+                        Some(format!("Failed to export library: {}", e));
+                }
             }
             Message::ExportLibraryPath(None) => {}
             Message::ImportLibrary => {
@@ -475,15 +555,24 @@ impl App {
                 );
             }
             Message::ImportLibraryPath(Some(path)) => {
-                let count = opengamecore_lib::library::import_library(
+                match opengamecore_lib::library::import_library(
                     &mut self.library,
                     std::path::Path::new(&path),
-                )
-                .unwrap_or(0);
-                if let Ok(games_path) = opengamecore_lib::paths::games_path() {
-                    let _ = self.library.save(&games_path);
+                ) {
+                    Ok(count) => {
+                        if let Ok(games_path) = opengamecore_lib::paths::games_path() {
+                            if let Err(e) = self.library.save(&games_path) {
+                                self.error_message =
+                                    Some(format!("Failed to save library after import: {}", e));
+                            }
+                        }
+                        return Task::done(Message::LibraryImported(count));
+                    }
+                    Err(e) => {
+                        self.error_message =
+                            Some(format!("Failed to import library: {}", e));
+                    }
                 }
-                return Task::done(Message::LibraryImported(count));
             }
             Message::ImportLibraryPath(None) => {}
             Message::LibraryImported(count) => {
@@ -542,14 +631,20 @@ impl App {
             Message::SkipFirstRun => {
                 self.config.app.first_run_complete = true;
                 if let Ok(path) = opengamecore_lib::paths::config_path() {
-                    let _ = self.config.save(&path);
+                    if let Err(e) = self.config.save(&path) {
+                        self.error_message =
+                            Some(format!("Failed to save configuration: {}", e));
+                    }
                 }
                 self.screen = Screen::Library;
             }
             Message::FinishFirstRun => {
                 self.config.app.first_run_complete = true;
                 if let Ok(path) = opengamecore_lib::paths::config_path() {
-                    let _ = self.config.save(&path);
+                    if let Err(e) = self.config.save(&path) {
+                        self.error_message =
+                            Some(format!("Failed to save configuration: {}", e));
+                    }
                 }
                 self.screen = Screen::Library;
 
@@ -594,7 +689,7 @@ impl App {
 
         let sidebar = views::sidebar::view(&self.screen);
 
-        let main_content: Element<'_, Message> = match self.screen {
+        let screen_content: Element<'_, Message> = match self.screen {
             Screen::Library => views::game_grid::view(&self.library.games),
             Screen::Bottles => views::bottle_detail::view(&self.bottles),
             Screen::Settings => views::settings::view(
@@ -604,6 +699,45 @@ impl App {
                 self.dxvk_dir.as_deref(),
             ),
             Screen::FirstRun => unreachable!(),
+        };
+
+        // Wrap main content with optional error banner
+        let main_content: Element<'_, Message> = if let Some(ref msg) = self.error_message {
+            let error_text = text(msg.clone())
+                .size(14)
+                .color(iced::Color::WHITE);
+            let dismiss_btn = button(
+                text("X").size(14).color(iced::Color::WHITE),
+            )
+            .on_press(Message::DismissError)
+            .padding([2, 8])
+            .style(|_theme, _status| button::Style {
+                background: None,
+                text_color: iced::Color::WHITE,
+                border: Border::default(),
+                ..button::Style::default()
+            });
+
+            let error_banner = container(
+                row![error_text, dismiss_btn]
+                    .spacing(12)
+                    .align_y(iced::Alignment::Center),
+            )
+            .width(Length::Fill)
+            .padding([8, 16])
+            .style(|_theme| container::Style {
+                background: Some(Background::Color(iced::Color::from_rgb(
+                    0.8, 0.2, 0.15,
+                ))),
+                ..container::Style::default()
+            });
+
+            column![error_banner, screen_content]
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        } else {
+            screen_content
         };
 
         let base = container(row![sidebar, main_content])
