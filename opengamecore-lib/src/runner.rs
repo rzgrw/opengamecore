@@ -18,6 +18,11 @@ pub struct LaunchConfig {
 }
 
 impl LaunchConfig {
+    /// Check if this launch uses Apple Game Porting Toolkit.
+    pub fn is_gptk(&self) -> bool {
+        self.wine_binary.to_string_lossy().contains("game-porting-toolkit")
+    }
+
     pub fn new(
         wine: &WineConfig,
         bottle_dir: &Path,
@@ -230,6 +235,25 @@ mod tests {
         );
 
         assert!(config.env.get("WINEDLLOVERRIDES").is_none());
+    }
+
+    #[test]
+    fn is_gptk_detects_gptk_binary() {
+        let config = LaunchConfig {
+            wine_binary: PathBuf::from("/opt/homebrew/bin/game-porting-toolkit"),
+            prefix: PathBuf::from("/tmp/prefix"),
+            exe: PathBuf::from("/tmp/game.exe"),
+            env: HashMap::new(),
+        };
+        assert!(config.is_gptk());
+
+        let config2 = LaunchConfig {
+            wine_binary: PathBuf::from("/opt/homebrew/bin/wine64"),
+            prefix: PathBuf::from("/tmp/prefix"),
+            exe: PathBuf::from("/tmp/game.exe"),
+            env: HashMap::new(),
+        };
+        assert!(!config2.is_gptk());
     }
 
     #[tokio::test]

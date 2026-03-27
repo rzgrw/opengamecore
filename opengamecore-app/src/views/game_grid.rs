@@ -73,11 +73,18 @@ pub fn view<'a>(games: &'a [Game], running_games: &'a HashSet<String>) -> Elemen
                 }
             };
 
-            let wine_row: Element<'_, Message> = if game.dxvk_enabled {
-                row![
-                    text(format!("Wine: {}", &game.wine_config))
-                        .size(12)
-                        .color(theme::TEXT_SECONDARY),
+            let is_gptk = game.wine_config.contains("gptk") || game.use_gptk;
+
+            let mut badge_row = row![
+                text(format!("Wine: {}", &game.wine_config))
+                    .size(12)
+                    .color(theme::TEXT_SECONDARY),
+            ]
+            .spacing(6)
+            .align_y(iced::Alignment::Center);
+
+            if game.dxvk_enabled {
+                badge_row = badge_row.push(
                     container(
                         text("DXVK").size(10).color(theme::ACCENT),
                     )
@@ -89,16 +96,26 @@ pub fn view<'a>(games: &'a [Game], running_games: &'a HashSet<String>) -> Elemen
                         border: Border::default().rounded(4),
                         ..container::Style::default()
                     }),
-                ]
-                .spacing(6)
-                .align_y(iced::Alignment::Center)
-                .into()
-            } else {
-                text(format!("Wine: {}", &game.wine_config))
-                    .size(12)
-                    .color(theme::TEXT_SECONDARY)
-                    .into()
-            };
+                );
+            }
+
+            if is_gptk {
+                badge_row = badge_row.push(
+                    container(
+                        text("GPTK").size(10).color(theme::BADGE_GPTK),
+                    )
+                    .padding([2, 6])
+                    .style(|_theme| container::Style {
+                        background: Some(Background::Color(iced::Color::from_rgba(
+                            1.0, 0.76, 0.03, 0.12,
+                        ))),
+                        border: Border::default().rounded(4),
+                        ..container::Style::default()
+                    }),
+                );
+            }
+
+            let wine_row: Element<'_, Message> = badge_row.into();
 
             let is_running = running_games.contains(&slug);
             let play_widget: Element<'_, Message> = if is_running {

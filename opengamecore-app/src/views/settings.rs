@@ -140,6 +140,55 @@ pub fn view<'a>(
         ..button::Style::default()
     });
 
+    // GPTK section
+    let gptk_header = text("Game Porting Toolkit")
+        .size(18)
+        .color(theme::TEXT_PRIMARY);
+
+    let gptk_detected: Vec<&WineConfig> = wine_configs
+        .iter()
+        .filter(|c| c.name.contains("gptk"))
+        .collect();
+
+    let gptk_section: Element<'_, Message> = if gptk_detected.is_empty() {
+        column![
+            text("GPTK not detected. Install via Homebrew or download from Apple Developer.")
+                .size(14)
+                .color(theme::TEXT_SECONDARY),
+            text("https://developer.apple.com/games/game-porting-toolkit/")
+                .size(12)
+                .color(theme::BADGE_GPTK),
+        ]
+        .spacing(4)
+        .into()
+    } else {
+        let mut items = column![].spacing(4);
+        for cfg in &gptk_detected {
+            items = items.push(
+                container(
+                    row![
+                        text(&cfg.name).size(14).color(theme::BADGE_GPTK),
+                        text(cfg.binary_path.display().to_string())
+                            .size(12)
+                            .color(theme::TEXT_SECONDARY),
+                    ]
+                    .spacing(8)
+                    .align_y(iced::Alignment::Center),
+                )
+                .padding(8)
+                .width(Length::Fill)
+                .style(|_theme| container::Style {
+                    background: Some(Background::Color(iced::Color::from_rgba(
+                        1.0, 0.76, 0.03, 0.08,
+                    ))),
+                    border: Border::default().rounded(6),
+                    ..container::Style::default()
+                }),
+            );
+        }
+        items.into()
+    };
+
     // Download sources section
     let sources_header = text("Download Sources")
         .size(18)
@@ -200,6 +249,8 @@ pub fn view<'a>(
         wine_header,
         wine_list,
         add_wine_btn,
+        gptk_header,
+        gptk_section,
         sources_header,
         sources_list,
         dxvk_header,

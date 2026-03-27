@@ -208,6 +208,7 @@ fn cmd_add(name: &str, exe: &str, install_type_str: &str, icon: Option<&std::pat
         last_played: None,
         icon_path: None,
         dxvk_enabled: false,
+        use_gptk: false,
     };
 
     lib.add(game);

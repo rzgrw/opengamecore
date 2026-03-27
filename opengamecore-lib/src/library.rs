@@ -31,6 +31,8 @@ pub struct Game {
     pub icon_path: Option<String>,
     #[serde(default)]
     pub dxvk_enabled: bool,
+    #[serde(default)]
+    pub use_gptk: bool,
 }
 
 fn default_wine_config() -> String {
@@ -154,6 +156,7 @@ mod tests {
             last_played: None,
             icon_path: None,
             dxvk_enabled: false,
+            use_gptk: false,
         }
     }
 

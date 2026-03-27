@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::config::WineConfig;
@@ -45,7 +46,38 @@ pub fn discover(wine_dir: &Path) -> Result<Vec<WineConfig>> {
         }
     }
 
+    // Check for Game Porting Toolkit
+    for gptk_path in &[
+        "/opt/homebrew/bin/game-porting-toolkit",
+        "/usr/local/bin/game-porting-toolkit",
+        "/opt/homebrew/bin/game-porting-toolkit-no-hud",
+    ] {
+        let p = PathBuf::from(gptk_path);
+        if p.exists() {
+            let name = if gptk_path.contains("no-hud") {
+                "gptk-no-hud".to_string()
+            } else {
+                "gptk".to_string()
+            };
+            if !configs.iter().any(|c| c.binary_path == p) {
+                configs.push(WineConfig {
+                    name,
+                    binary_path: p,
+                    env_overrides: gptk_env_overrides(),
+                });
+            }
+        }
+    }
+
     Ok(configs)
+}
+
+/// Recommended environment variables for GPTK.
+fn gptk_env_overrides() -> HashMap<String, String> {
+    let mut env = HashMap::new();
+    env.insert("MTL_HUD_ENABLED".into(), "0".into());
+    env.insert("WINEESYNC".into(), "1".into());
+    env
 }
 
 /// Search a Wine installation directory for the wine binary.
@@ -231,5 +263,12 @@ mod tests {
     fn resolve_missing_errors() {
         let configs: Vec<WineConfig> = vec![];
         assert!(resolve(&configs, "default").is_err());
+    }
+
+    #[test]
+    fn gptk_env_overrides_set() {
+        let env = gptk_env_overrides();
+        assert_eq!(env.get("WINEESYNC").unwrap(), "1");
+        assert_eq!(env.get("MTL_HUD_ENABLED").unwrap(), "0");
     }
 }

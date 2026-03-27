@@ -304,6 +304,7 @@ impl App {
                         last_played: None,
                         icon_path,
                         dxvk_enabled: false,
+                        use_gptk: false,
                     };
 
                     self.library.add(game);

@@ -19,10 +19,16 @@ pub struct WineSettings {
     pub download_urls: Vec<String>,
     #[serde(default = "default_dxvk_url")]
     pub dxvk_download_url: String,
+    #[serde(default = "default_gptk_info_url")]
+    pub gptk_info_url: String,
 }
 
 fn default_dxvk_url() -> String {
     "https://github.com/doitsujin/dxvk/releases/download/v2.5.3/dxvk-2.5.3.tar.gz".into()
+}
+
+fn default_gptk_info_url() -> String {
+    "https://developer.apple.com/games/game-porting-toolkit/".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +61,7 @@ impl Default for WineSettings {
                 "https://github.com/Gcenx/macOS_Wine_builds/releases/download/v9.0/wine-devel-9.0-osx64.tar.xz".into(),
             ],
             dxvk_download_url: default_dxvk_url(),
+            gptk_info_url: default_gptk_info_url(),
         }
     }
 }
