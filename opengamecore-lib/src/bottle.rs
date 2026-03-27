@@ -224,4 +224,17 @@ mod tests {
         assert!(bottle.join("drive_c").exists());
         assert!(!bottle.join("corrupt").exists());
     }
+
+    #[test]
+    fn reset_creates_bottle_even_if_missing() {
+        let tmp = TempDir::new().unwrap();
+        let template = tmp.path().join("_template");
+        make_fake_template(&template);
+
+        let bottle = tmp.path().join("nonexistent-game");
+        assert!(!bottle.exists());
+
+        reset(&template, &bottle).unwrap();
+        assert!(bottle.join("drive_c").exists());
+    }
 }

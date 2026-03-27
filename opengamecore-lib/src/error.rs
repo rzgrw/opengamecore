@@ -80,4 +80,25 @@ mod tests {
         let msg = err.user_message();
         assert!(msg.contains("bottle not found"));
     }
+
+    #[test]
+    fn user_message_io_permission_denied() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "test");
+        let err = Error::Io(io_err);
+        assert!(err.user_message().contains("Permission denied"));
+    }
+
+    #[test]
+    fn user_message_download() {
+        let err = Error::Download("connection refused".into());
+        let msg = err.user_message();
+        assert!(msg.contains("Download failed"));
+        assert!(msg.contains("internet connection"));
+    }
+
+    #[test]
+    fn user_message_process() {
+        let err = Error::Process("segfault".into());
+        assert!(err.user_message().contains("crashed"));
+    }
 }

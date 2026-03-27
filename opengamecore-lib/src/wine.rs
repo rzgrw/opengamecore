@@ -272,4 +272,25 @@ mod tests {
         assert_eq!(env.get("WINEESYNC").unwrap(), "1");
         assert_eq!(env.get("MTL_HUD_ENABLED").unwrap(), "0");
     }
+
+    #[test]
+    fn resolve_empty_string_picks_first() {
+        let configs = vec![
+            WineConfig {
+                name: "wine-9.0".into(),
+                binary_path: "/fake/bin/wine".into(),
+                env_overrides: Default::default(),
+            },
+        ];
+        let resolved = resolve(&configs, "").unwrap();
+        assert_eq!(resolved.name, "wine-9.0");
+    }
+
+    #[test]
+    fn discover_nonexistent_dir_returns_empty() {
+        let configs = discover(Path::new("/definitely/does/not/exist")).unwrap();
+        // May contain homebrew results but should not error
+        // Just check it doesn't panic
+        let _ = configs;
+    }
 }

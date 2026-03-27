@@ -239,4 +239,34 @@ mod tests {
         assert!(overrides.contains("d3d11=n"));
         assert!(overrides.contains("dxgi=n"));
     }
+
+    #[test]
+    fn is_installed_false_with_partial_dlls() {
+        let tmp = TempDir::new().unwrap();
+        let sys32 = tmp.path().join("drive_c/windows/system32");
+        std::fs::create_dir_all(&sys32).unwrap();
+        // Only install 2 of 4 DLLs
+        std::fs::write(sys32.join("d3d9.dll"), "fake").unwrap();
+        std::fs::write(sys32.join("d3d11.dll"), "fake").unwrap();
+        assert!(!is_installed(tmp.path()));
+    }
+
+    #[test]
+    fn uninstall_without_backups_is_safe_noop() {
+        let tmp = TempDir::new().unwrap();
+        let sys32 = tmp.path().join("drive_c/windows/system32");
+        std::fs::create_dir_all(&sys32).unwrap();
+        // Put DLLs with no .orig backups
+        for dll in &["d3d9", "d3d10core", "d3d11", "dxgi"] {
+            std::fs::write(sys32.join(format!("{}.dll", dll)), "original").unwrap();
+        }
+        uninstall(tmp.path()).unwrap();
+        // Original DLLs should still be intact
+        for dll in &["d3d9", "d3d10core", "d3d11", "dxgi"] {
+            assert_eq!(
+                std::fs::read_to_string(sys32.join(format!("{}.dll", dll))).unwrap(),
+                "original"
+            );
+        }
+    }
 }

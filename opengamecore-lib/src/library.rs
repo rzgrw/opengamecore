@@ -231,6 +231,38 @@ mod tests {
     }
 
     #[test]
+    fn load_corrupt_toml_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("games.toml");
+        std::fs::write(&path, "not valid {{ toml").unwrap();
+        assert!(GameLibrary::load(&path).is_err());
+    }
+
+    #[test]
+    fn find_mut_modifies_game() {
+        let mut lib = GameLibrary::default();
+        lib.add(make_game("Test Game")).unwrap();
+        let game = lib.find_mut("test-game").unwrap();
+        game.wine_config = "custom-wine".into();
+        assert_eq!(lib.find("test-game").unwrap().wine_config, "custom-wine");
+    }
+
+    #[test]
+    fn add_duplicate_slug_returns_error() {
+        let mut lib = GameLibrary::default();
+        lib.add(make_game("Test Game")).unwrap();
+        assert!(lib.add(make_game("Test Game")).is_err());
+    }
+
+    #[test]
+    fn recently_played_all_none_returns_empty() {
+        let mut lib = GameLibrary::default();
+        lib.add(make_game("Game A")).unwrap();
+        lib.add(make_game("Game B")).unwrap();
+        assert!(lib.recently_played().is_empty());
+    }
+
+    #[test]
     fn export_and_import() {
         let dir = TempDir::new().unwrap();
         let export_path = dir.path().join("export.toml");

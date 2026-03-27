@@ -139,4 +139,13 @@ mod tests {
         let config = AppConfig::load(&path).unwrap();
         assert!(!config.app.first_run_complete);
     }
+
+    #[test]
+    fn load_corrupt_toml_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, "this is { not valid toml !!!").unwrap();
+        let result = AppConfig::load(&path);
+        assert!(result.is_err());
+    }
 }

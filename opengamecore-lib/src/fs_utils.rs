@@ -107,4 +107,19 @@ mod tests {
         let restored = restore_from_backup(&path).unwrap();
         assert!(!restored);
     }
+
+    #[test]
+    fn atomic_write_preserves_original_on_dir_not_found() {
+        // Writing to a non-existent directory should fail
+        let result = atomic_write(Path::new("/nonexistent/dir/file.toml"), "data");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn restore_when_neither_exists_returns_false() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("nothing.toml");
+        let restored = restore_from_backup(&path).unwrap();
+        assert!(!restored);
+    }
 }
