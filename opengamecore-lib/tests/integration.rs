@@ -48,7 +48,7 @@ fn full_game_lifecycle() {
     let mut library = GameLibrary::default();
     let game = make_test_game("Test Game");
     let slug = game.slug.clone();
-    library.add(game);
+    library.add(game).unwrap();
     library.save(&games_path).unwrap();
 
     // Create bottle for the game
@@ -144,17 +144,17 @@ fn library_sharing_workflow() {
 
     // User A creates library with 3 games
     let mut user_a = GameLibrary::default();
-    user_a.add(make_test_game("Game Alpha"));
-    user_a.add(make_test_game("Game Beta"));
-    user_a.add(make_test_game("Game Gamma"));
+    user_a.add(make_test_game("Game Alpha")).unwrap();
+    user_a.add(make_test_game("Game Beta")).unwrap();
+    user_a.add(make_test_game("Game Gamma")).unwrap();
 
     let export_path = tmp.path().join("shared-library.toml");
     export_library(&user_a, &export_path).unwrap();
 
     // User B has 1 overlapping game and 1 unique game
     let mut user_b = GameLibrary::default();
-    user_b.add(make_test_game("Game Alpha")); // overlap
-    user_b.add(make_test_game("Game Delta")); // unique
+    user_b.add(make_test_game("Game Alpha")).unwrap(); // overlap
+    user_b.add(make_test_game("Game Delta")).unwrap(); // unique
 
     let imported = import_library(&mut user_b, &export_path).unwrap();
 

@@ -84,6 +84,7 @@ pub struct AppState {
     pub library: GameLibrary,
     pub wine_configs: Vec<WineConfig>,
     pub bottles: Vec<BottleInfo>,
+    pub load_warnings: Vec<String>,
 }
 
 pub struct App {
@@ -120,31 +121,54 @@ impl App {
 
         let task = Task::perform(
             async {
-                let config = opengamecore_lib::paths::config_path()
-                    .ok()
-                    .and_then(|p| AppConfig::load(&p).ok())
-                    .unwrap_or_default();
+                let mut load_warnings = Vec::new();
 
-                let library = opengamecore_lib::paths::games_path()
-                    .ok()
-                    .and_then(|p| GameLibrary::load(&p).ok())
-                    .unwrap_or_default();
+                let config = match opengamecore_lib::paths::config_path()
+                    .and_then(|p| AppConfig::load(&p))
+                {
+                    Ok(c) => c,
+                    Err(e) => {
+                        load_warnings.push(format!("Failed to load config: {}", e.user_message()));
+                        AppConfig::default()
+                    }
+                };
 
-                let wine_configs = opengamecore_lib::paths::wine_dir()
-                    .ok()
-                    .and_then(|p| opengamecore_lib::wine::discover(&p).ok())
-                    .unwrap_or_default();
+                let library = match opengamecore_lib::paths::games_path()
+                    .and_then(|p| GameLibrary::load(&p))
+                {
+                    Ok(l) => l,
+                    Err(e) => {
+                        load_warnings.push(format!("Failed to load library: {}", e.user_message()));
+                        GameLibrary::default()
+                    }
+                };
 
-                let bottles = opengamecore_lib::paths::bottles_dir()
-                    .ok()
-                    .and_then(|p| opengamecore_lib::bottle::list(&p).ok())
-                    .unwrap_or_default();
+                let wine_configs = match opengamecore_lib::paths::wine_dir()
+                    .and_then(|p| opengamecore_lib::wine::discover(&p))
+                {
+                    Ok(c) => c,
+                    Err(e) => {
+                        load_warnings.push(format!("Failed to discover Wine: {}", e.user_message()));
+                        Vec::new()
+                    }
+                };
+
+                let bottles = match opengamecore_lib::paths::bottles_dir()
+                    .and_then(|p| opengamecore_lib::bottle::list(&p))
+                {
+                    Ok(b) => b,
+                    Err(e) => {
+                        load_warnings.push(format!("Failed to list bottles: {}", e.user_message()));
+                        Vec::new()
+                    }
+                };
 
                 Box::new(AppState {
                     config,
                     library,
                     wine_configs,
                     bottles,
+                    load_warnings,
                 })
             },
             Message::Loaded,
@@ -179,6 +203,9 @@ impl App {
                 self.library = state.library;
                 self.wine_configs = state.wine_configs;
                 self.bottles = state.bottles;
+                if let Some(warning) = state.load_warnings.first() {
+                    self.error_message = Some(warning.clone());
+                }
                 if first_run {
                     self.screen = Screen::FirstRun;
                 }
@@ -307,7 +334,10 @@ impl App {
                         use_gptk: false,
                     };
 
-                    self.library.add(game);
+                    if let Err(e) = self.library.add(game) {
+                        self.error_message = Some(format!("Failed to add game: {}", e));
+                        return Task::none();
+                    }
 
                     // Save library
                     if let Ok(path) = opengamecore_lib::paths::games_path() {
@@ -529,15 +559,16 @@ impl App {
                 let url = self.config.wine.dxvk_download_url.clone();
                 return Task::perform(
                     async move {
-                        let data_dir = match opengamecore_lib::paths::wine_dir() {
-                            Ok(d) => d,
-                            Err(_) => return None,
-                        };
+                        let data_dir = opengamecore_lib::paths::wine_dir()
+                            .map_err(|e| e.to_string())?;
                         opengamecore_lib::dxvk::download_and_extract(&url, &data_dir)
                             .await
-                            .ok()
+                            .map_err(|e| e.to_string())
                     },
-                    Message::DxvkDownloaded,
+                    |result: Result<PathBuf, String>| match result {
+                        Ok(path) => Message::DxvkDownloaded(Some(path)),
+                        Err(e) => Message::ShowError(format!("Failed to download DXVK: {}", e)),
+                    },
                 );
             }
             Message::DxvkDownloaded(path) => {
@@ -602,7 +633,7 @@ impl App {
             }
             Message::ImportLibraryPath(None) => {}
             Message::LibraryImported(count) => {
-                eprintln!("Imported {} game(s) into library", count);
+                self.error_message = Some(format!("Successfully imported {} game(s).", count));
             }
 
             // First Run
@@ -675,12 +706,20 @@ impl App {
                 self.screen = Screen::Library;
 
                 // Reload wine configs
-                if let Ok(wine_dir) = opengamecore_lib::paths::wine_dir() {
-                    if let Ok(configs) = opengamecore_lib::wine::discover(&wine_dir) {
+                match opengamecore_lib::paths::wine_dir()
+                    .and_then(|d| opengamecore_lib::wine::discover(&d))
+                {
+                    Ok(configs) if !configs.is_empty() => {
+                        self.config.wine.default = configs[0].name.clone();
                         self.wine_configs = configs;
-                        if let Some(first) = self.wine_configs.first() {
-                            self.config.wine.default = first.name.clone();
-                        }
+                    }
+                    Ok(_) => {
+                        self.error_message = Some(
+                            "Wine was downloaded but no binary was found. Check Settings.".into()
+                        );
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to detect Wine: {}", e));
                     }
                 }
             }

@@ -112,7 +112,7 @@ pub fn reset(template_dir: &Path, bottle_dir: &Path) -> Result<()> {
         format!("{}.user.reg.bak", bottle_dir.file_name().unwrap_or_default().to_string_lossy())
     );
     if user_reg.exists() {
-        std::fs::copy(&user_reg, &user_reg_backup).ok();
+        std::fs::copy(&user_reg, &user_reg_backup)?;
     }
 
     if bottle_dir.exists() {

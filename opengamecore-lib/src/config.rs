@@ -77,7 +77,9 @@ impl Default for AppSettings {
 impl AppConfig {
     pub fn load(path: &std::path::Path) -> Result<Self> {
         // Try to restore from backup if file is missing or corrupt
-        let _ = crate::fs_utils::restore_from_backup(path);
+        if let Err(e) = crate::fs_utils::restore_from_backup(path) {
+            eprintln!("Warning: failed to restore backup for {}: {}", path.display(), e);
+        }
 
         if path.exists() {
             let content = std::fs::read_to_string(path)?;

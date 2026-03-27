@@ -90,8 +90,10 @@ pub async fn run_and_capture(config: &LaunchConfig, slug: &str) -> Result<RunRes
             let mut reader = tokio::io::BufReader::new(stdout);
             let mut buf = String::new();
             use tokio::io::AsyncReadExt;
-            let _ = reader.read_to_string(&mut buf).await;
-            buf
+            match reader.read_to_string(&mut buf).await {
+                Ok(_) => buf,
+                Err(e) => format!("[capture error: {}]\n{}", e, buf),
+            }
         } else {
             String::new()
         }
@@ -102,8 +104,10 @@ pub async fn run_and_capture(config: &LaunchConfig, slug: &str) -> Result<RunRes
             let mut reader = tokio::io::BufReader::new(stderr);
             let mut buf = String::new();
             use tokio::io::AsyncReadExt;
-            let _ = reader.read_to_string(&mut buf).await;
-            buf
+            match reader.read_to_string(&mut buf).await {
+                Ok(_) => buf,
+                Err(e) => format!("[capture error: {}]\n{}", e, buf),
+            }
         } else {
             String::new()
         }
@@ -114,8 +118,10 @@ pub async fn run_and_capture(config: &LaunchConfig, slug: &str) -> Result<RunRes
         .await
         .map_err(|e| Error::Process(format!("Failed waiting for process: {}", e)))?;
 
-    let stdout_text = stdout_handle.await.unwrap_or_default();
-    let stderr_text = stderr_handle.await.unwrap_or_default();
+    let stdout_text = stdout_handle.await
+        .unwrap_or_else(|e| format!("[stdout reader panicked: {}]", e));
+    let stderr_text = stderr_handle.await
+        .unwrap_or_else(|e| format!("[stderr reader panicked: {}]", e));
 
     let duration = start.elapsed();
 

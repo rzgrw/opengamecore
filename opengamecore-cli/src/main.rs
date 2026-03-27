@@ -211,7 +211,10 @@ fn cmd_add(name: &str, exe: &str, install_type_str: &str, icon: Option<&std::pat
         use_gptk: false,
     };
 
-    lib.add(game);
+    if let Err(e) = lib.add(game) {
+        eprintln!("Error: {}", e.user_message());
+        std::process::exit(EXIT_USER_ERROR);
+    }
     save_library(&lib);
 
     // Create bottle from template

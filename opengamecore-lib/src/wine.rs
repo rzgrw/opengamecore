@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::config::WineConfig;
@@ -136,6 +136,13 @@ pub async fn download_and_extract(
 
     std::fs::write(&archive_path, &bytes)?;
 
+    // Snapshot existing directories before extraction
+    let before: HashSet<PathBuf> = std::fs::read_dir(wine_dir)?
+        .flatten()
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .map(|e| e.path())
+        .collect();
+
     let status = std::process::Command::new("tar")
         .args(["xf"])
         .arg(&archive_path)
@@ -148,20 +155,14 @@ pub async fn download_and_extract(
 
     std::fs::remove_file(&archive_path).ok();
 
-    let mut newest: Option<(PathBuf, std::time::SystemTime)> = None;
-    for entry in std::fs::read_dir(wine_dir)? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir() {
-            let modified = entry.metadata()?.modified()?;
-            if newest.as_ref().map_or(true, |(_, t)| modified > *t) {
-                newest = Some((entry.path(), modified));
-            }
-        }
-    }
-
-    newest
-        .map(|(p, _)| p)
-        .ok_or_else(|| Error::Download("No directory found after extraction".into()))
+    // Find the new directory by diffing against snapshot
+    let new_dir = std::fs::read_dir(wine_dir)?
+        .flatten()
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .map(|e| e.path())
+        .find(|p| !before.contains(p))
+        .ok_or_else(|| Error::Download("No new directory found after extraction".into()))?;
+    Ok(new_dir)
 }
 
 /// Resolve which WineConfig to use given a config name.

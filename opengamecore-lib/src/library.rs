@@ -48,7 +48,9 @@ pub struct GameLibrary {
 impl GameLibrary {
     pub fn load(path: &Path) -> Result<Self> {
         // Try to restore from backup if file is missing or corrupt
-        let _ = crate::fs_utils::restore_from_backup(path);
+        if let Err(e) = crate::fs_utils::restore_from_backup(path) {
+            eprintln!("Warning: failed to restore backup for {}: {}", path.display(), e);
+        }
 
         if path.exists() {
             let content = std::fs::read_to_string(path)?;
@@ -72,8 +74,14 @@ impl GameLibrary {
         Ok(())
     }
 
-    pub fn add(&mut self, game: Game) {
+    pub fn add(&mut self, game: Game) -> Result<()> {
+        if self.find(&game.slug).is_some() {
+            return Err(Error::GameNotFound(format!(
+                "Game with slug '{}' already exists", game.slug
+            )));
+        }
         self.games.push(game);
+        Ok(())
     }
 
     pub fn remove(&mut self, slug: &str) -> Result<()> {
@@ -120,7 +128,7 @@ pub fn import_library(existing: &mut GameLibrary, path: &std::path::Path) -> Res
     let mut count = 0;
     for game in imported.games {
         if existing.find(&game.slug).is_none() {
-            existing.add(game);
+            existing.add(game)?;
             count += 1;
         }
     }
@@ -163,7 +171,7 @@ mod tests {
     #[test]
     fn add_and_find_game() {
         let mut lib = GameLibrary::default();
-        lib.add(make_game("Test Game"));
+        lib.add(make_game("Test Game")).unwrap();
         assert!(lib.find("test-game").is_some());
         assert_eq!(lib.find("test-game").unwrap().name, "Test Game");
     }
@@ -171,7 +179,7 @@ mod tests {
     #[test]
     fn remove_game() {
         let mut lib = GameLibrary::default();
-        lib.add(make_game("Test Game"));
+        lib.add(make_game("Test Game")).unwrap();
         lib.remove("test-game").unwrap();
         assert!(lib.find("test-game").is_none());
     }
@@ -188,7 +196,7 @@ mod tests {
         let path = dir.path().join("games.toml");
 
         let mut lib = GameLibrary::default();
-        lib.add(make_game("Cyberpunk 2077"));
+        lib.add(make_game("Cyberpunk 2077")).unwrap();
         lib.save(&path).unwrap();
 
         let loaded = GameLibrary::load(&path).unwrap();
@@ -205,9 +213,9 @@ mod tests {
         g2.last_played = Some(Utc::now());
         let g3 = make_game("Never Played");
 
-        lib.add(g1);
-        lib.add(g2);
-        lib.add(g3);
+        lib.add(g1).unwrap();
+        lib.add(g2).unwrap();
+        lib.add(g3).unwrap();
 
         let recent = lib.recently_played();
         assert_eq!(recent.len(), 2);
@@ -228,12 +236,12 @@ mod tests {
         let export_path = dir.path().join("export.toml");
 
         let mut lib = GameLibrary::default();
-        lib.add(make_game("Game One"));
-        lib.add(make_game("Game Two"));
+        lib.add(make_game("Game One")).unwrap();
+        lib.add(make_game("Game Two")).unwrap();
         export_library(&lib, &export_path).unwrap();
 
         let mut target = GameLibrary::default();
-        target.add(make_game("Game One")); // already exists
+        target.add(make_game("Game One")).unwrap(); // already exists
         let count = import_library(&mut target, &export_path).unwrap();
 
         assert_eq!(count, 1); // only Game Two imported

@@ -1,10 +1,12 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use crate::error::Result;
 
 /// Write to a file atomically: write to a temp file, then rename.
 /// This prevents data corruption from crashes mid-write.
 pub fn atomic_write(path: &Path, content: &str) -> Result<()> {
-    let temp_path = path.with_extension("tmp");
+    let mut temp_name = path.as_os_str().to_owned();
+    temp_name.push(".tmp");
+    let temp_path = PathBuf::from(temp_name);
     std::fs::write(&temp_path, content)?;
     std::fs::rename(&temp_path, path)?;
     Ok(())
@@ -50,7 +52,9 @@ mod tests {
         atomic_write(&path, "hello = 'world'").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "hello = 'world'");
         // Temp file should be cleaned up
-        assert!(!path.with_extension("tmp").exists());
+        let mut temp_name = path.as_os_str().to_owned();
+        temp_name.push(".tmp");
+        assert!(!std::path::PathBuf::from(temp_name).exists());
     }
 
     #[test]
