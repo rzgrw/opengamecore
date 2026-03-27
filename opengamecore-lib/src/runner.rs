@@ -61,6 +61,85 @@ pub fn spawn(config: &LaunchConfig) -> Result<Child> {
     Ok(child)
 }
 
+/// Result of running a game, including captured output.
+#[derive(Debug, Clone)]
+pub struct RunResult {
+    pub slug: String,
+    pub exit_code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+    pub duration_secs: f64,
+}
+
+/// Spawn a Wine process and capture its output.
+pub async fn run_and_capture(config: &LaunchConfig, slug: &str) -> Result<RunResult> {
+    let start = std::time::Instant::now();
+
+    let mut child = spawn(config)?;
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let stdout_handle = tokio::spawn(async move {
+        if let Some(stdout) = stdout {
+            let mut reader = tokio::io::BufReader::new(stdout);
+            let mut buf = String::new();
+            use tokio::io::AsyncReadExt;
+            let _ = reader.read_to_string(&mut buf).await;
+            buf
+        } else {
+            String::new()
+        }
+    });
+
+    let stderr_handle = tokio::spawn(async move {
+        if let Some(stderr) = stderr {
+            let mut reader = tokio::io::BufReader::new(stderr);
+            let mut buf = String::new();
+            use tokio::io::AsyncReadExt;
+            let _ = reader.read_to_string(&mut buf).await;
+            buf
+        } else {
+            String::new()
+        }
+    });
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| Error::Process(format!("Failed waiting for process: {}", e)))?;
+
+    let stdout_text = stdout_handle.await.unwrap_or_default();
+    let stderr_text = stderr_handle.await.unwrap_or_default();
+
+    let duration = start.elapsed();
+
+    Ok(RunResult {
+        slug: slug.to_string(),
+        exit_code: status.code(),
+        stdout: stdout_text,
+        stderr: stderr_text,
+        duration_secs: duration.as_secs_f64(),
+    })
+}
+
+/// Save a run result's logs to the app's log directory.
+pub fn save_run_log(result: &RunResult) -> Result<()> {
+    let log_dir = crate::paths::data_dir()?.join("logs");
+    std::fs::create_dir_all(&log_dir)?;
+
+    let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+    let log_path = log_dir.join(format!("{}-{}.log", result.slug, timestamp));
+
+    let content = format!(
+        "Game: {}\nExit code: {:?}\nDuration: {:.1}s\n\n--- STDOUT ---\n{}\n\n--- STDERR ---\n{}\n",
+        result.slug, result.exit_code, result.duration_secs, result.stdout, result.stderr
+    );
+
+    std::fs::write(&log_path, content)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,5 +241,17 @@ mod tests {
             env: HashMap::new(),
         };
         assert!(spawn(&config).is_err());
+    }
+
+    #[tokio::test]
+    async fn run_and_capture_returns_result_on_missing_binary() {
+        let config = LaunchConfig {
+            wine_binary: PathBuf::from("/nonexistent/wine"),
+            prefix: PathBuf::from("/tmp/prefix"),
+            exe: PathBuf::from("/tmp/game.exe"),
+            env: HashMap::new(),
+        };
+        // Should error because binary doesn't exist
+        assert!(run_and_capture(&config, "test-game").await.is_err());
     }
 }

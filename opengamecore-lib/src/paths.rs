@@ -39,9 +39,19 @@ pub fn icons_dir() -> Result<PathBuf> {
     data_dir().map(|d| d.join("icons"))
 }
 
+pub fn logs_dir() -> Result<PathBuf> {
+    data_dir().map(|d| d.join("logs"))
+}
+
 /// Ensure all app directories exist.
 pub fn ensure_dirs() -> Result<()> {
-    let dirs = [data_dir()?, bottles_dir()?, wine_dir()?, icons_dir()?];
+    let dirs = [
+        data_dir()?,
+        bottles_dir()?,
+        wine_dir()?,
+        icons_dir()?,
+        logs_dir()?,
+    ];
     for dir in &dirs {
         std::fs::create_dir_all(dir)?;
     }
@@ -79,5 +89,6 @@ mod tests {
         assert!(bottles_dir().unwrap().exists());
         assert!(wine_dir().unwrap().exists());
         assert!(icons_dir().unwrap().exists());
+        assert!(logs_dir().unwrap().exists());
     }
 }

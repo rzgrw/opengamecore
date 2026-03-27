@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use iced::widget::{button, column, container, row, text};
@@ -40,7 +40,7 @@ pub enum Message {
 
     // Game actions
     PlayGame(String),
-    GameExited(String),
+    GameExited(Box<opengamecore_lib::runner::RunResult>),
 
     // Bottle actions
     ResetBottle(String),
@@ -98,6 +98,8 @@ pub struct App {
     dxvk_dir: Option<PathBuf>,
     /// Currently displayed error, cleared on dismiss
     error_message: Option<String>,
+    /// Set of game slugs that are currently running
+    running_games: HashSet<String>,
 }
 
 impl App {
@@ -113,6 +115,7 @@ impl App {
             first_run_phase: FirstRunPhase::default(),
             dxvk_dir: None,
             error_message: None,
+            running_games: HashSet::new(),
         };
 
         let task = Task::perform(
@@ -373,19 +376,29 @@ impl App {
                                         }
                                     }
 
+                                    self.running_games.insert(slug.clone());
+
                                     return Task::perform(
                                         async move {
-                                            match opengamecore_lib::runner::spawn(&config) {
-                                                Ok(mut child) => {
-                                                    let _ = child.wait().await;
-                                                }
-                                                Err(e) => {
-                                                    eprintln!("Failed to launch: {}", e);
-                                                }
+                                            match opengamecore_lib::runner::run_and_capture(
+                                                &config,
+                                                &slug_clone,
+                                            )
+                                            .await
+                                            {
+                                                Ok(result) => Box::new(result),
+                                                Err(e) => Box::new(
+                                                    opengamecore_lib::runner::RunResult {
+                                                        slug: slug_clone,
+                                                        exit_code: None,
+                                                        stdout: String::new(),
+                                                        stderr: e.to_string(),
+                                                        duration_secs: 0.0,
+                                                    },
+                                                ),
                                             }
-                                            slug_clone
                                         },
-                                        Message::GameExited,
+                                        |result| Message::GameExited(result),
                                     );
                                 }
                                 Err(e) => {
@@ -403,8 +416,20 @@ impl App {
                     }
                 }
             }
-            Message::GameExited(_slug) => {
-                // Game process finished, could refresh state
+            Message::GameExited(result) => {
+                self.running_games.remove(&result.slug);
+                // Save log
+                if let Err(e) = opengamecore_lib::runner::save_run_log(&result) {
+                    self.error_message = Some(format!("Failed to save game log: {}", e));
+                }
+                // Show error if game crashed
+                if result.exit_code.map_or(false, |c| c != 0) {
+                    self.error_message = Some(format!(
+                        "'{}' exited with code {}. Check logs for details.",
+                        result.slug,
+                        result.exit_code.unwrap_or(-1)
+                    ));
+                }
             }
 
             // Bottle actions
@@ -690,7 +715,7 @@ impl App {
         let sidebar = views::sidebar::view(&self.screen);
 
         let screen_content: Element<'_, Message> = match self.screen {
-            Screen::Library => views::game_grid::view(&self.library.games),
+            Screen::Library => views::game_grid::view(&self.library.games, &self.running_games),
             Screen::Bottles => views::bottle_detail::view(&self.bottles),
             Screen::Settings => views::settings::view(
                 &self.wine_configs,

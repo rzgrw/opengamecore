@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use iced::widget::{button, column, container, image, row, text, Scrollable};
 use iced::{Background, Border, Element, Length};
 
@@ -6,7 +8,7 @@ use opengamecore_lib::Game;
 use crate::app::Message;
 use crate::theme;
 
-pub fn view(games: &[Game]) -> Element<'_, Message> {
+pub fn view<'a>(games: &'a [Game], running_games: &'a HashSet<String>) -> Element<'a, Message> {
     let header = row![
         text("All Games").size(24).color(theme::TEXT_PRIMARY),
         iced::widget::horizontal_space(),
@@ -98,6 +100,26 @@ pub fn view(games: &[Game]) -> Element<'_, Message> {
                     .into()
             };
 
+            let is_running = running_games.contains(&slug);
+            let play_widget: Element<'_, Message> = if is_running {
+                container(
+                    text("Running...").size(14).color(theme::TEXT_SECONDARY),
+                )
+                .padding([8, 20])
+                .into()
+            } else {
+                button(text("Play").size(14).color(theme::BUTTON_GREEN_TEXT))
+                    .on_press(Message::PlayGame(slug))
+                    .padding([8, 20])
+                    .style(|_theme, _status| button::Style {
+                        background: Some(Background::Color(theme::BUTTON_GREEN)),
+                        text_color: theme::BUTTON_GREEN_TEXT,
+                        border: Border::default().rounded(6),
+                        ..button::Style::default()
+                    })
+                    .into()
+            };
+
             let card = container(
                 row![
                     icon_widget,
@@ -107,17 +129,7 @@ pub fn view(games: &[Game]) -> Element<'_, Message> {
                     ]
                     .spacing(4),
                     iced::widget::horizontal_space(),
-                    button(
-                        text("Play").size(14).color(theme::BUTTON_GREEN_TEXT)
-                    )
-                    .on_press(Message::PlayGame(slug))
-                    .padding([8, 20])
-                    .style(|_theme, _status| button::Style {
-                        background: Some(Background::Color(theme::BUTTON_GREEN)),
-                        text_color: theme::BUTTON_GREEN_TEXT,
-                        border: Border::default().rounded(6),
-                        ..button::Style::default()
-                    })
+                    play_widget,
                 ]
                 .spacing(12)
                 .align_y(iced::Alignment::Center),
