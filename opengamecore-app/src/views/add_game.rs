@@ -9,6 +9,7 @@ pub enum AddGameTab {
     Installer,
     Portable,
     FromFolder,
+    AutoDetect,
 }
 
 #[derive(Debug, Clone)]
@@ -17,15 +18,17 @@ pub struct AddGameState {
     pub name: String,
     pub path: Option<String>,
     pub icon_path: Option<String>,
+    pub matched_bundle: Option<opengamecore_lib::BundleConfig>,
 }
 
 impl Default for AddGameState {
     fn default() -> Self {
         Self {
-            tab: AddGameTab::Installer,
+            tab: AddGameTab::AutoDetect,
             name: String::new(),
             path: None,
             icon_path: None,
+            matched_bundle: None,
         }
     }
 }
@@ -58,6 +61,11 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
 
     let tabs = row![
         tab_button(
+            "Auto-Detect",
+            AddGameTab::AutoDetect,
+            state.tab == AddGameTab::AutoDetect
+        ),
+        tab_button(
             "Installer",
             AddGameTab::Installer,
             state.tab == AddGameTab::Installer
@@ -76,6 +84,7 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
     .spacing(4);
 
     let tab_hint = match state.tab {
+        AddGameTab::AutoDetect => "Select a game folder to auto-detect and configure",
         AddGameTab::Installer => "Select a Windows installer (.exe/.msi)",
         AddGameTab::Portable => "Select a portable game executable",
         AddGameTab::FromFolder => "Select an existing game folder",
@@ -148,7 +157,48 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
     .spacing(8)
     .align_y(iced::Alignment::Center);
 
-    let can_add = !state.name.is_empty() && state.path.is_some();
+    // Show bundle match info in auto-detect mode
+    let bundle_info: Option<Element<'_, Message>> = if state.tab == AddGameTab::AutoDetect {
+        if let Some(ref bundle) = state.matched_bundle {
+            let info = column![
+                text(format!("Matched: {}", bundle.game.name))
+                    .size(14)
+                    .color(theme::ACCENT),
+                text(format!("Rating: {} | Backend: {}", bundle.game.rating, bundle.wine.backend))
+                    .size(12)
+                    .color(theme::TEXT_SECONDARY),
+            ]
+            .spacing(4);
+            Some(
+                container(info)
+                    .padding([8, 12])
+                    .width(Length::Fill)
+                    .style(|_theme| container::Style {
+                        background: Some(Background::Color(iced::Color::from_rgba(0.0, 1.0, 0.5, 0.05))),
+                        border: Border::default().rounded(4),
+                        ..container::Style::default()
+                    })
+                    .into(),
+            )
+        } else if state.path.is_some() {
+            Some(
+                text("No compatible game detected. Try the manual tabs.")
+                    .size(13)
+                    .color(theme::TEXT_SECONDARY)
+                    .into(),
+            )
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let can_add = if state.tab == AddGameTab::AutoDetect {
+        state.matched_bundle.is_some()
+    } else {
+        !state.name.is_empty() && state.path.is_some()
+    };
 
     let mut add_btn = button(
         text("Add Game").size(14).color(theme::BUTTON_GREEN_TEXT),
@@ -179,21 +229,32 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
 
     let action_row = row![cancel_btn, add_btn].spacing(12);
 
+    let mut dialog_content = column![
+        text("Add Game").size(20).color(theme::TEXT_PRIMARY),
+        tabs,
+        text(tab_hint).size(13).color(theme::TEXT_SECONDARY),
+        browse_row,
+    ]
+    .spacing(12);
+
+    if let Some(info) = bundle_info {
+        dialog_content = dialog_content.push(info);
+    }
+
+    if state.tab != AddGameTab::AutoDetect {
+        dialog_content = dialog_content
+            .push(text("Game Name").size(13).color(theme::TEXT_SECONDARY))
+            .push(name_input)
+            .push(text("Icon (optional)").size(13).color(theme::TEXT_SECONDARY))
+            .push(icon_row);
+    }
+
+    dialog_content = dialog_content.push(action_row);
+
     let dialog = container(
-        column![
-            text("Add Game").size(20).color(theme::TEXT_PRIMARY),
-            tabs,
-            text(tab_hint).size(13).color(theme::TEXT_SECONDARY),
-            browse_row,
-            text("Game Name").size(13).color(theme::TEXT_SECONDARY),
-            name_input,
-            text("Icon (optional)").size(13).color(theme::TEXT_SECONDARY),
-            icon_row,
-            action_row,
-        ]
-        .spacing(12)
-        .padding(24)
-        .width(400),
+        dialog_content
+            .padding(24)
+            .width(400),
     )
     .style(|_theme| container::Style {
         background: Some(Background::Color(theme::BG_SIDEBAR)),

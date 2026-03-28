@@ -34,6 +34,24 @@ fn default_gptk_info_url() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub first_run_complete: bool,
+    #[serde(default = "default_auto_update")]
+    pub auto_update_database: bool,
+    #[serde(default = "default_database_url")]
+    pub database_url: String,
+    #[serde(default = "default_bundles_url")]
+    pub bundles_url: String,
+}
+
+fn default_auto_update() -> bool {
+    true
+}
+
+fn default_database_url() -> String {
+    "https://raw.githubusercontent.com/user/opengamecore/main/data/compatibility.json".into()
+}
+
+fn default_bundles_url() -> String {
+    "https://raw.githubusercontent.com/user/opengamecore/main/data/bundles/".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +88,9 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             first_run_complete: false,
+            auto_update_database: default_auto_update(),
+            database_url: default_database_url(),
+            bundles_url: default_bundles_url(),
         }
     }
 }

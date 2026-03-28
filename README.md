@@ -13,6 +13,9 @@ A macOS Wine game launcher written in Rust — clean UI, fast bottle cloning, an
 - **Data safety** — atomic writes, automatic backups, and crash recovery
 - **Process monitoring** — log capture, running state tracking, and crash detection
 - **CLI companion** — full `ogc` CLI for scripting and automation
+- **Game compatibility database** — built-in ratings from ProtonDB, WineHQ, and CrossOver data
+- **Steam/GOG auto-detection** — scan installed games and show compatibility at a glance
+- **One-click bundles** — pre-configured settings for popular games (Wine backend, env vars, workarounds)
 
 ## Requirements
 
@@ -115,6 +118,16 @@ ogc import library.toml
 
 # Remove a game
 ogc remove "Game Name"
+
+# Detect installed Steam/GOG games
+ogc detect
+
+# Search the compatibility database
+ogc database "cyberpunk"
+ogc database --rating gold
+
+# Auto-configure a game from its bundle
+ogc setup stardew-valley --path ~/Games/StardewValley
 ```
 
 ## How It Works
@@ -138,6 +151,28 @@ All data lives under `~/Library/Application Support/OpenGameCore/`:
 ├── logs/                # Per-game Wine logs
 └── backups/             # Auto-generated backups
 ```
+
+## Game Compatibility
+
+OpenGameCore ships with a compatibility database covering popular Windows games on macOS. Each game has a rating (Platinum/Gold/Silver/Bronze/Borked) and recommended settings.
+
+**Browse the database:**
+- In the app: click "Game Database" in the sidebar
+- CLI: `ogc database` or `ogc database "search term"`
+
+**Auto-detect installed games:**
+- CLI: `ogc detect` scans Steam and GOG libraries
+- App: the first-run wizard automatically detects installed games
+
+**Set up a game from a bundle:**
+- CLI: `ogc setup stardew-valley --path /path/to/game`
+- App: use the "Add" button in the Game Database view
+
+**Submit a compatibility report:**
+Open a [Discussion](https://github.com/your-org/opengamecore/discussions/new?category=compatibility-report) with your game, macOS version, chip, and rating.
+
+**Contribute a bundle:**
+Add a TOML file to `data/bundles/` with the game's recommended settings and open a PR. See existing bundles for the format.
 
 ## Contributing
 

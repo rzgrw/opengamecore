@@ -8,6 +8,8 @@ pub mod fs_utils;
 pub mod library;
 pub mod paths;
 pub mod runner;
+pub mod store_detect;
+pub mod data_update;
 pub mod wine;
 
 pub use bundle::BundleConfig;
@@ -16,3 +18,4 @@ pub use config::{AppConfig, WineConfig};
 pub use error::{Error, Result};
 pub use library::{export_library, import_library, Game, GameLibrary, InstallType};
 pub use runner::LaunchConfig;
+pub use store_detect::{DetectedGame, GameStore};

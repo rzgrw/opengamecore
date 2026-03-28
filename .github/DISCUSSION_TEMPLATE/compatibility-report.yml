@@ -1,0 +1,50 @@
+title: "[Compat] "
+labels: ["compatibility-report"]
+body:
+  - type: input
+    id: game
+    attributes:
+      label: Game Name
+    validations:
+      required: true
+  - type: dropdown
+    id: rating
+    attributes:
+      label: Rating
+      options:
+        - Platinum (works perfectly)
+        - Gold (minor tweaks needed)
+        - Silver (playable with workarounds)
+        - Bronze (runs but significant issues)
+        - Borked (does not work)
+    validations:
+      required: true
+  - type: input
+    id: macos_version
+    attributes:
+      label: macOS Version
+      placeholder: "e.g., 14.3"
+    validations:
+      required: true
+  - type: input
+    id: chip
+    attributes:
+      label: Apple Chip
+      placeholder: "e.g., M3 Pro"
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Wine Backend
+      options:
+        - Wine
+        - GPTK
+        - CrossOver
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: "Any workarounds, tweaks, or issues"

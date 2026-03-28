@@ -2966,6 +2966,7 @@ dependencies = [
  "futures-util",
  "reqwest",
  "serde",
+ "serde_json",
  "slug",
  "tempfile",
  "thiserror 2.0.18",

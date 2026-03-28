@@ -2,7 +2,8 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 use opengamecore_lib::{
-    bottle, library, paths, runner, wine, Game, GameLibrary, InstallType, LaunchConfig,
+    bottle, bundle, compat, library, paths, runner, store_detect, wine, Game, GameLibrary,
+    InstallType, LaunchConfig,
 };
 
 /// Exit code for user errors (bad input, game not found, etc.)
@@ -84,6 +85,30 @@ enum Commands {
 
     /// Show app directories and config
     Info,
+
+    /// Scan Steam and GOG for installed games and show compatibility
+    Detect,
+
+    /// Search the compatibility database
+    Database {
+        /// Search query
+        #[arg(default_value = "")]
+        query: String,
+
+        /// Filter by rating (platinum, gold, silver, bronze, borked)
+        #[arg(short, long)]
+        rating: Option<String>,
+    },
+
+    /// Auto-configure a game from its bundle
+    Setup {
+        /// Game slug from the database
+        slug: String,
+
+        /// Path to game folder
+        #[arg(short, long)]
+        path: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -109,6 +134,9 @@ async fn main() {
         Commands::Export { path } => cmd_export(&path),
         Commands::Import { path } => cmd_import(&path),
         Commands::Info => cmd_info(),
+        Commands::Detect => cmd_detect(),
+        Commands::Database { query, rating } => cmd_database(&query, rating.as_deref()),
+        Commands::Setup { slug, path } => cmd_setup(&slug, path.as_deref()),
     }
 }
 
@@ -524,4 +552,197 @@ fn cmd_info() {
     print_path!("games_path:", paths::games_path());
     print_path!("bottles_dir:", paths::bottles_dir());
     print_path!("wine_dir:", paths::wine_dir());
+}
+
+fn load_compat_db() -> compat::CompatDatabase {
+    let db_path = match paths::compat_db_path() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error resolving compat db path: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    };
+    match compat::CompatDatabase::load(&db_path) {
+        Ok(db) => db,
+        Err(e) => {
+            eprintln!(
+                "Error loading compatibility database: {}\nHint: copy data/compatibility.json to {}",
+                e.user_message(),
+                db_path.display()
+            );
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    }
+}
+
+fn cmd_detect() {
+    let db = load_compat_db();
+    let games = match store_detect::detect_installed_games(&db) {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("Error detecting games: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    };
+
+    if games.is_empty() {
+        println!("No installed games detected from Steam or GOG.");
+        return;
+    }
+
+    println!(
+        "{:<30} {:<8} {:<10} {:<8} {}",
+        "NAME", "STORE", "RATING", "BUNDLE", "PATH"
+    );
+    println!("{}", "-".repeat(100));
+    for game in &games {
+        let store = match game.store {
+            store_detect::GameStore::Steam => "Steam",
+            store_detect::GameStore::Gog => "GOG",
+        };
+        let rating = game
+            .rating
+            .as_ref()
+            .map(|r| r.label())
+            .unwrap_or("Unknown");
+        let bundle_str = if game.bundle_available { "yes" } else { "no" };
+        println!(
+            "{:<30} {:<8} {:<10} {:<8} {}",
+            game.name,
+            store,
+            rating,
+            bundle_str,
+            game.install_path.display()
+        );
+    }
+    println!("\n{} game(s) found.", games.len());
+}
+
+fn cmd_database(query: &str, rating_filter: Option<&str>) {
+    let db = load_compat_db();
+
+    let rating = rating_filter.map(|r| match r.to_lowercase().as_str() {
+        "platinum" => compat::CompatRating::Platinum,
+        "gold" => compat::CompatRating::Gold,
+        "silver" => compat::CompatRating::Silver,
+        "bronze" => compat::CompatRating::Bronze,
+        "borked" => compat::CompatRating::Borked,
+        other => {
+            eprintln!(
+                "Unknown rating '{}'. Use: platinum, gold, silver, bronze, borked",
+                other
+            );
+            std::process::exit(EXIT_USER_ERROR);
+        }
+    });
+
+    let results: Vec<&compat::CompatEntry> = db
+        .games
+        .iter()
+        .filter(|e| {
+            let matches_query = query.is_empty()
+                || e.name.to_lowercase().contains(&query.to_lowercase())
+                || e.slug.contains(&query.to_lowercase());
+            let matches_rating = rating.as_ref().map_or(true, |r| e.rating == *r);
+            matches_query && matches_rating
+        })
+        .collect();
+
+    if results.is_empty() {
+        println!("No games found matching your query.");
+        return;
+    }
+
+    println!(
+        "{:<30} {:<10} {:<8} {:<10} {}",
+        "NAME", "RATING", "CONF", "BACKEND", "BUNDLE"
+    );
+    println!("{}", "-".repeat(80));
+    for entry in &results {
+        println!(
+            "{:<30} {:<10} {:<8} {:<10} {}",
+            entry.name,
+            entry.rating.label(),
+            format!("{:.0}%", entry.confidence * 100.0),
+            entry.recommended_backend,
+            if entry.bundle_available {
+                "yes"
+            } else {
+                "no"
+            }
+        );
+    }
+    println!("\n{} game(s) found.", results.len());
+}
+
+fn cmd_setup(slug: &str, game_path: Option<&std::path::Path>) {
+    let bundles_dir = match paths::bundles_dir() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error resolving bundles dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    };
+
+    let bundles = match bundle::load_bundles(&bundles_dir) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Error loading bundles: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    };
+
+    let bundle_config = match bundles.get(slug) {
+        Some(b) => b,
+        None => {
+            eprintln!(
+                "No bundle found for '{}'. Available bundles:",
+                slug
+            );
+            for key in bundles.keys() {
+                eprintln!("  - {}", key);
+            }
+            std::process::exit(EXIT_USER_ERROR);
+        }
+    };
+
+    let install_path = match game_path {
+        Some(p) => p.to_path_buf(),
+        None => {
+            eprintln!("Please specify a game path with --path");
+            std::process::exit(EXIT_USER_ERROR);
+        }
+    };
+
+    let mut lib = load_library();
+
+    match bundle::apply_bundle(bundle_config, &install_path, &mut lib) {
+        Ok(game_slug) => {
+            save_library(&lib);
+
+            // Create bottle from template
+            if let (Ok(template), Ok(bottle_path)) = (
+                paths::template_bottle_dir(),
+                paths::bottle_dir(&game_slug),
+            ) {
+                if template.exists() {
+                    match bottle::create(&template, &bottle_path) {
+                        Ok(()) => println!("Bottle created for '{}'.", game_slug),
+                        Err(e) => {
+                            eprintln!("Warning: could not create bottle: {}", e.user_message())
+                        }
+                    }
+                }
+            }
+
+            println!(
+                "Game '{}' configured with slug '{}' from bundle.",
+                bundle_config.game.name, game_slug
+            );
+        }
+        Err(e) => {
+            eprintln!("Error applying bundle: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    }
 }

@@ -5,8 +5,11 @@ use iced::widget::{button, column, container, row, text};
 use iced::{Background, Border, Element, Length, Task, Theme};
 
 use opengamecore_lib::bottle::BottleInfo;
+use opengamecore_lib::bundle::BundleConfig;
+use opengamecore_lib::store_detect::DetectedGame;
 use opengamecore_lib::{
-    AppConfig, Game, GameLibrary, InstallType, LaunchConfig, WineConfig,
+    AppConfig, CompatDatabase, CompatRating, Game, GameLibrary, InstallType, LaunchConfig,
+    WineConfig,
 };
 use crate::views;
 use crate::views::add_game::{AddGameState, AddGameTab};
@@ -16,6 +19,7 @@ use crate::views::first_run::FirstRunPhase;
 pub enum Screen {
     FirstRun,
     Library,
+    Database,
     Bottles,
     Settings,
 }
@@ -76,6 +80,27 @@ pub enum Message {
     FirstRunTemplateCreating,
     FirstRunComplete,
     FirstRunError(String),
+
+    // Database
+    SearchChanged(String),
+    FilterRating(Option<CompatRating>),
+    SetupFromDatabase(String),
+    SetupFolderSelected(String, Option<String>),
+
+    // Store detection
+    DetectGames,
+    GamesDetected(Vec<DetectedGame>),
+
+    // Bundle
+    ApplyBundle(String),
+    BundleApplied(String),
+
+    // Auto-detect in add game
+    AutoDetectFolder,
+    AutoDetectResult(Option<BundleConfig>),
+
+    // Data update
+    DatabaseUpdated(bool),
 }
 
 #[derive(Debug, Clone)]
@@ -85,6 +110,8 @@ pub struct AppState {
     pub wine_configs: Vec<WineConfig>,
     pub bottles: Vec<BottleInfo>,
     pub load_warnings: Vec<String>,
+    pub compat_db: Option<CompatDatabase>,
+    pub bundles: HashMap<String, BundleConfig>,
 }
 
 pub struct App {
@@ -97,10 +124,13 @@ pub struct App {
     wine_configs: Vec<WineConfig>,
     first_run_phase: FirstRunPhase,
     dxvk_dir: Option<PathBuf>,
-    /// Currently displayed error, cleared on dismiss
     error_message: Option<String>,
-    /// Set of game slugs that are currently running
     running_games: HashSet<String>,
+    compat_db: Option<CompatDatabase>,
+    bundles: HashMap<String, BundleConfig>,
+    detected_games: Vec<DetectedGame>,
+    db_search_query: String,
+    db_filter_rating: Option<CompatRating>,
 }
 
 impl App {
@@ -117,6 +147,11 @@ impl App {
             dxvk_dir: None,
             error_message: None,
             running_games: HashSet::new(),
+            compat_db: None,
+            bundles: HashMap::new(),
+            detected_games: Vec::new(),
+            db_search_query: String::new(),
+            db_filter_rating: None,
         };
 
         let task = Task::perform(
@@ -163,12 +198,26 @@ impl App {
                     }
                 };
 
+                let compat_db = match opengamecore_lib::paths::compat_db_path()
+                    .and_then(|p| CompatDatabase::load(&p))
+                {
+                    Ok(db) => Some(db),
+                    Err(_) => None,
+                };
+
+                let bundles = match opengamecore_lib::paths::bundles_dir() {
+                    Ok(p) => opengamecore_lib::bundle::load_bundles(&p).unwrap_or_default(),
+                    Err(_) => HashMap::new(),
+                };
+
                 Box::new(AppState {
                     config,
                     library,
                     wine_configs,
                     bottles,
                     load_warnings,
+                    compat_db,
+                    bundles,
                 })
             },
             Message::Loaded,
@@ -203,6 +252,8 @@ impl App {
                 self.library = state.library;
                 self.wine_configs = state.wine_configs;
                 self.bottles = state.bottles;
+                self.compat_db = state.compat_db;
+                self.bundles = state.bundles;
                 if let Some(warning) = state.load_warnings.first() {
                     self.error_message = Some(warning.clone());
                 }
@@ -230,6 +281,24 @@ impl App {
                 }
             }
             Message::AddGameBrowse => {
+                let is_auto_detect = self
+                    .add_game
+                    .as_ref()
+                    .map_or(false, |s| s.tab == AddGameTab::AutoDetect);
+
+                if is_auto_detect {
+                    return Task::perform(
+                        async {
+                            let handle = rfd::AsyncFileDialog::new()
+                                .set_title("Select game folder")
+                                .pick_folder()
+                                .await;
+                            handle.map(|h| h.path().to_string_lossy().to_string())
+                        },
+                        Message::AddGamePathSelected,
+                    );
+                }
+
                 return Task::perform(
                     async {
                         let handle = rfd::AsyncFileDialog::new()
@@ -245,12 +314,23 @@ impl App {
                 if let Some(ref mut state) = self.add_game {
                     if let Some(ref p) = path {
                         if state.name.is_empty() {
-                            // Auto-fill name from filename
                             if let Some(stem) = std::path::Path::new(p)
                                 .file_stem()
                                 .and_then(|s| s.to_str())
                             {
                                 state.name = stem.to_string();
+                            }
+                        }
+                        // Auto-detect bundle matching when in AutoDetect mode
+                        if state.tab == AddGameTab::AutoDetect {
+                            let folder = std::path::PathBuf::from(p);
+                            state.matched_bundle =
+                                opengamecore_lib::bundle::match_bundle_for_folder(
+                                    &folder,
+                                    &self.bundles,
+                                );
+                            if let Some(ref bundle) = state.matched_bundle {
+                                state.name = bundle.game.name.clone();
                             }
                         }
                     }
@@ -298,11 +378,64 @@ impl App {
                 self.error_message = None;
 
                 if let Some(state) = self.add_game.take() {
+                    // Handle auto-detect with bundle
+                    if state.tab == AddGameTab::AutoDetect {
+                        if let Some(bundle) = state.matched_bundle {
+                            if let Some(install_path) = state.path {
+                                let install_path = std::path::PathBuf::from(&install_path);
+                                match opengamecore_lib::bundle::apply_bundle(
+                                    &bundle,
+                                    &install_path,
+                                    &mut self.library,
+                                ) {
+                                    Ok(applied_slug) => {
+                                        if let Ok(path) = opengamecore_lib::paths::games_path() {
+                                            if let Err(e) = self.library.save(&path) {
+                                                self.error_message = Some(format!(
+                                                    "Failed to save library: {}",
+                                                    e
+                                                ));
+                                            }
+                                        }
+                                        // Create bottle
+                                        let slug = applied_slug;
+                                        if let (Ok(template), Ok(bottle)) = (
+                                            opengamecore_lib::paths::template_bottle_dir(),
+                                            opengamecore_lib::paths::bottle_dir(&slug),
+                                        ) {
+                                            if let Err(e) = opengamecore_lib::bottle::create(
+                                                &template, &bottle,
+                                            ) {
+                                                self.error_message = Some(format!(
+                                                    "Failed to create bottle: {}",
+                                                    e
+                                                ));
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        self.error_message =
+                                            Some(format!("Failed to apply bundle: {}", e));
+                                    }
+                                }
+                            }
+                        }
+                        return Task::perform(
+                            async {
+                                opengamecore_lib::paths::bottles_dir()
+                                    .ok()
+                                    .and_then(|p| opengamecore_lib::bottle::list(&p).ok())
+                                    .unwrap_or_default()
+                            },
+                            Message::BottlesLoaded,
+                        );
+                    }
+
                     let slug = opengamecore_lib::library::slugify(&state.name);
                     let install_type = match state.tab {
                         AddGameTab::Installer => InstallType::Installer,
                         AddGameTab::Portable => InstallType::Portable,
-                        AddGameTab::FromFolder => InstallType::FolderInstall,
+                        AddGameTab::FromFolder | AddGameTab::AutoDetect => InstallType::FolderInstall,
                     };
 
                     let exe = state.path.unwrap_or_default();
@@ -730,11 +863,142 @@ impl App {
                 self.first_run_phase = FirstRunPhase::CreatingTemplate;
             }
             Message::FirstRunComplete => {
-                self.first_run_phase = FirstRunPhase::Done;
+                self.first_run_phase = FirstRunPhase::DetectingGames;
+                return Task::done(Message::DetectGames);
             }
             Message::FirstRunError(err) => {
                 self.first_run_phase = FirstRunPhase::Error(err);
             }
+
+            // Database
+            Message::SearchChanged(query) => {
+                self.db_search_query = query;
+            }
+            Message::FilterRating(rating) => {
+                self.db_filter_rating = rating;
+            }
+            Message::SetupFromDatabase(slug) => {
+                let slug_clone = slug.clone();
+                return Task::perform(
+                    async move {
+                        let handle = rfd::AsyncFileDialog::new()
+                            .set_title("Select game folder")
+                            .pick_folder()
+                            .await;
+                        let path = handle.map(|h| h.path().to_string_lossy().to_string());
+                        (slug_clone, path)
+                    },
+                    |(slug, path)| Message::SetupFolderSelected(slug, path),
+                );
+            }
+            Message::SetupFolderSelected(slug, Some(path)) => {
+                let install_path = std::path::PathBuf::from(&path);
+                if let Some(bundle) = self.bundles.get(&slug).cloned() {
+                    match opengamecore_lib::bundle::apply_bundle(
+                        &bundle,
+                        &install_path,
+                        &mut self.library,
+                    ) {
+                        Ok(applied_slug) => {
+                            let slug = applied_slug;
+                            if let Ok(games_path) = opengamecore_lib::paths::games_path() {
+                                if let Err(e) = self.library.save(&games_path) {
+                                    self.error_message =
+                                        Some(format!("Failed to save library: {}", e));
+                                }
+                            }
+                            if let (Ok(template), Ok(bottle)) = (
+                                opengamecore_lib::paths::template_bottle_dir(),
+                                opengamecore_lib::paths::bottle_dir(&slug),
+                            ) {
+                                if let Err(e) =
+                                    opengamecore_lib::bottle::create(&template, &bottle)
+                                {
+                                    self.error_message =
+                                        Some(format!("Failed to create bottle: {}", e));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            self.error_message =
+                                Some(format!("Failed to apply bundle: {}", e));
+                        }
+                    }
+                } else {
+                    self.error_message = Some(format!("No bundle found for '{}'", slug));
+                }
+                return Task::perform(
+                    async {
+                        opengamecore_lib::paths::bottles_dir()
+                            .ok()
+                            .and_then(|p| opengamecore_lib::bottle::list(&p).ok())
+                            .unwrap_or_default()
+                    },
+                    Message::BottlesLoaded,
+                );
+            }
+            Message::SetupFolderSelected(_, None) => {}
+
+            // Store detection
+            Message::DetectGames => {
+                let compat_db = self.compat_db.clone();
+                return Task::perform(
+                    async move {
+                        match compat_db {
+                            Some(db) => {
+                                opengamecore_lib::store_detect::detect_installed_games(&db)
+                                    .unwrap_or_default()
+                            }
+                            None => Vec::new(),
+                        }
+                    },
+                    Message::GamesDetected,
+                );
+            }
+            Message::GamesDetected(games) => {
+                self.detected_games = games.clone();
+                if matches!(self.first_run_phase, FirstRunPhase::DetectingGames) {
+                    self.first_run_phase = FirstRunPhase::GamesFound { detected: games };
+                }
+            }
+
+            // Bundle
+            Message::ApplyBundle(_slug) => {
+                // Handled via SetupFromDatabase flow
+            }
+            Message::BundleApplied(_slug) => {}
+
+            // Auto-detect
+            Message::AutoDetectFolder => {
+                let bundles = self.bundles.clone();
+                return Task::perform(
+                    async move {
+                        let handle = rfd::AsyncFileDialog::new()
+                            .set_title("Select game folder")
+                            .pick_folder()
+                            .await;
+                        match handle {
+                            Some(h) => {
+                                let path = h.path().to_path_buf();
+                                opengamecore_lib::bundle::match_bundle_for_folder(
+                                    &path,
+                                    &bundles,
+                                )
+                            }
+                            None => None,
+                        }
+                    },
+                    Message::AutoDetectResult,
+                );
+            }
+            Message::AutoDetectResult(bundle) => {
+                if let Some(ref mut state) = self.add_game {
+                    state.matched_bundle = bundle;
+                }
+            }
+
+            // Data update
+            Message::DatabaseUpdated(_) => {}
         }
         Task::none()
     }
@@ -756,6 +1020,11 @@ impl App {
 
         let screen_content: Element<'_, Message> = match self.screen {
             Screen::Library => views::game_grid::view(&self.library.games, &self.running_games),
+            Screen::Database => views::game_database::view(
+                self.compat_db.as_ref(),
+                &self.db_search_query,
+                &self.db_filter_rating,
+            ),
             Screen::Bottles => views::bottle_detail::view(&self.bottles),
             Screen::Settings => views::settings::view(
                 &self.wine_configs,

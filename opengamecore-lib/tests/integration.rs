@@ -283,6 +283,163 @@ fn launch_config_assembly() {
     assert!(config.env.get("WINEDLLOVERRIDES").unwrap().contains("d3d11=n"));
 }
 
+// ===== Viral features integration tests =====
+
+/// Integration: load compatibility.json from repo data/, verify it parses and search works
+#[test]
+fn compat_database_from_repo() {
+    let db_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("data/compatibility.json");
+    let db = opengamecore_lib::compat::CompatDatabase::load(&db_path).unwrap();
+
+    assert!(db.games.len() >= 3, "expected at least 3 seed games");
+    assert_eq!(db.version, 1);
+
+    // Search works
+    let results = db.search("cyberpunk");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].slug, "cyberpunk-2077");
+
+    // Lookup by steam appid
+    let entry = db.find_by_steam_appid(413150);
+    assert!(entry.is_some());
+    assert_eq!(entry.unwrap().name, "Stardew Valley");
+
+    // Filter by rating
+    let platinum = db.filter_by_rating(&opengamecore_lib::CompatRating::Platinum);
+    assert!(platinum.len() >= 2);
+}
+
+/// Integration: load bundles from data/bundles/, match against fake folder, apply to library
+#[test]
+fn bundle_load_match_apply() {
+    let bundles_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("data/bundles");
+    let bundles = opengamecore_lib::bundle::load_bundles(&bundles_dir).unwrap();
+
+    assert!(bundles.len() >= 3, "expected at least 3 seed bundles");
+    assert!(bundles.contains_key("stardew-valley"));
+
+    // Create a fake game folder with matching exe
+    let tmp = TempDir::new().unwrap();
+    let game_dir = tmp.path().join("Stardew Valley");
+    std::fs::create_dir_all(&game_dir).unwrap();
+    std::fs::write(game_dir.join("Stardew Valley.exe"), "fake").unwrap();
+
+    // Match
+    let matched = opengamecore_lib::bundle::match_bundle_for_folder(&game_dir, &bundles);
+    assert!(matched.is_some());
+    let bundle = matched.unwrap();
+    assert_eq!(bundle.game.slug, "stardew-valley");
+
+    // Apply
+    let mut lib = GameLibrary::default();
+    let slug = opengamecore_lib::bundle::apply_bundle(&bundle, &game_dir, &mut lib).unwrap();
+    assert_eq!(slug, "stardew-valley");
+    assert!(lib.find("stardew-valley").is_some());
+
+    let game = lib.find("stardew-valley").unwrap();
+    assert_eq!(game.wine_config, "default");
+}
+
+/// Integration: mock Steam ACF → detect → match against compat DB
+#[test]
+fn store_detection_pipeline() {
+    let db_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("data/compatibility.json");
+    let db = opengamecore_lib::compat::CompatDatabase::load(&db_path).unwrap();
+
+    // Create mock Steam directory
+    let tmp = TempDir::new().unwrap();
+    let steamapps = tmp.path().join("steamapps");
+    std::fs::create_dir_all(steamapps.join("common/Cyberpunk 2077")).unwrap();
+    std::fs::write(
+        steamapps.join("appmanifest_1091500.acf"),
+        r#"
+"AppState"
+{
+	"appid"		"1091500"
+	"name"		"Cyberpunk 2077"
+	"installdir"		"Cyberpunk 2077"
+}
+"#,
+    )
+    .unwrap();
+
+    let games =
+        opengamecore_lib::store_detect::detect_steam_games(&steamapps, &db).unwrap();
+    assert_eq!(games.len(), 1);
+    assert_eq!(games[0].name, "Cyberpunk 2077");
+    assert_eq!(
+        games[0].rating,
+        Some(opengamecore_lib::CompatRating::Gold)
+    );
+    assert!(games[0].bundle_available);
+}
+
+/// Integration: full pipeline — detect → find bundle → apply → verify library
+#[test]
+fn full_viral_pipeline() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let db = opengamecore_lib::compat::CompatDatabase::load(
+        &repo_root.join("data/compatibility.json"),
+    )
+    .unwrap();
+    let bundles =
+        opengamecore_lib::bundle::load_bundles(&repo_root.join("data/bundles")).unwrap();
+
+    // Create mock Steam directory
+    let tmp = TempDir::new().unwrap();
+    let steamapps = tmp.path().join("steamapps");
+    let game_dir = steamapps.join("common/Stardew Valley");
+    std::fs::create_dir_all(&game_dir).unwrap();
+    std::fs::write(game_dir.join("Stardew Valley.exe"), "fake").unwrap();
+    std::fs::write(
+        steamapps.join("appmanifest_413150.acf"),
+        r#"
+"AppState"
+{
+	"appid"		"413150"
+	"name"		"Stardew Valley"
+	"installdir"		"Stardew Valley"
+}
+"#,
+    )
+    .unwrap();
+
+    // Detect
+    let detected =
+        opengamecore_lib::store_detect::detect_steam_games(&steamapps, &db).unwrap();
+    assert_eq!(detected.len(), 1);
+    assert!(detected[0].bundle_available);
+
+    // Find matching bundle
+    let matched = opengamecore_lib::bundle::match_bundle_for_folder(&game_dir, &bundles);
+    assert!(matched.is_some());
+
+    // Apply
+    let mut lib = GameLibrary::default();
+    let slug = opengamecore_lib::bundle::apply_bundle(
+        &matched.unwrap(),
+        &game_dir,
+        &mut lib,
+    )
+    .unwrap();
+
+    // Verify
+    let game = lib.find(&slug).unwrap();
+    assert_eq!(game.name, "Stardew Valley");
+    assert_eq!(game.slug, "stardew-valley");
+}
+
 /// Workflow: crash recovery — empty config file restored from backup
 #[test]
 fn crash_recovery_workflow() {

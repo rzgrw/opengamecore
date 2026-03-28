@@ -1,5 +1,7 @@
-use iced::widget::{button, column, container, progress_bar, text};
+use iced::widget::{button, column, container, progress_bar, scrollable, row, text};
 use iced::{Background, Border, Element, Length};
+
+use opengamecore_lib::store_detect::DetectedGame;
 
 use crate::app::Message;
 use crate::theme;
@@ -11,6 +13,8 @@ pub enum FirstRunPhase {
     Downloading { progress: f32, status: String },
     CreatingTemplate,
     Done,
+    DetectingGames,
+    GamesFound { detected: Vec<DetectedGame> },
     Error(String),
 }
 
@@ -110,6 +114,104 @@ pub fn view(phase: &FirstRunPhase) -> Element<'_, Message> {
             column![title, subtitle, go_btn]
                 .spacing(16)
                 .align_x(iced::Alignment::Center)
+                .into()
+        }
+        FirstRunPhase::DetectingGames => {
+            let title = text("Scanning for installed games...")
+                .size(24)
+                .color(theme::TEXT_PRIMARY);
+
+            let subtitle = text("Checking Steam and GOG libraries")
+                .size(14)
+                .color(theme::TEXT_SECONDARY);
+
+            column![title, subtitle]
+                .spacing(12)
+                .align_x(iced::Alignment::Center)
+                .into()
+        }
+        FirstRunPhase::GamesFound { detected } => {
+            let title = text("Games Found!")
+                .size(28)
+                .color(theme::ACCENT);
+
+            let subtitle = text(format!("Found {} installed game(s)", detected.len()))
+                .size(14)
+                .color(theme::TEXT_SECONDARY);
+
+            let mut list = column![].spacing(4);
+            for game in detected {
+                let rating_text = game
+                    .rating
+                    .as_ref()
+                    .map(|r| r.label().to_string())
+                    .unwrap_or_else(|| "Unknown".to_string());
+
+                let game_row = container(
+                    row![
+                        text(&game.name)
+                            .size(14)
+                            .color(theme::TEXT_PRIMARY)
+                            .width(Length::Fill),
+                        text(rating_text)
+                            .size(12)
+                            .color(theme::TEXT_SECONDARY),
+                        {
+                            let action_element: Element<'_, Message> = if game.bundle_available {
+                                button(
+                                    text("Set Up").size(12).color(theme::BUTTON_GREEN_TEXT),
+                                )
+                                .on_press(Message::ApplyBundle(game.name.clone()))
+                                .padding([4, 12])
+                                .style(|_theme, _status| button::Style {
+                                    background: Some(Background::Color(theme::BUTTON_GREEN)),
+                                    text_color: theme::BUTTON_GREEN_TEXT,
+                                    border: Border::default().rounded(4),
+                                    ..button::Style::default()
+                                })
+                                .into()
+                            } else {
+                                text("Manual setup needed")
+                                    .size(12)
+                                    .color(theme::TEXT_SECONDARY)
+                                    .into()
+                            };
+                            action_element
+                        },
+                    ]
+                    .spacing(12)
+                    .align_y(iced::Alignment::Center),
+                )
+                .padding([8, 16])
+                .width(Length::Fill)
+                .style(|_theme| container::Style {
+                    background: Some(Background::Color(iced::Color::from_rgba(
+                        1.0, 1.0, 1.0, 0.03,
+                    ))),
+                    border: Border::default().rounded(4),
+                    ..container::Style::default()
+                });
+                list = list.push(game_row);
+            }
+
+            let go_btn = button(
+                text("Continue to Library").size(16).color(theme::BUTTON_GREEN_TEXT),
+            )
+            .on_press(Message::FinishFirstRun)
+            .padding([12, 32])
+            .style(|_theme, _status| button::Style {
+                background: Some(Background::Color(theme::BUTTON_GREEN)),
+                text_color: theme::BUTTON_GREEN_TEXT,
+                border: Border::default().rounded(8),
+                ..button::Style::default()
+            });
+
+            let scroll = scrollable(list).height(300);
+
+            column![title, subtitle, scroll, go_btn]
+                .spacing(16)
+                .align_x(iced::Alignment::Center)
+                .width(600)
                 .into()
         }
         FirstRunPhase::Error(msg) => {

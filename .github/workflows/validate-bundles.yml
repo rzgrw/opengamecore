@@ -1,0 +1,83 @@
+name: Validate Bundles
+
+on:
+  push:
+    paths:
+      - 'data/**'
+  pull_request:
+    paths:
+      - 'data/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate compatibility.json
+        run: |
+          python3 -c "
+          import json, sys
+          with open('data/compatibility.json') as f:
+              db = json.load(f)
+          assert 'version' in db, 'Missing version field'
+          assert 'games' in db, 'Missing games field'
+          assert isinstance(db['games'], list), 'games must be a list'
+          for game in db['games']:
+              assert 'name' in game, f'Missing name in game entry'
+              assert 'slug' in game, f'Missing slug in {game.get(\"name\", \"unknown\")}'
+              assert 'rating' in game, f'Missing rating in {game[\"name\"]}'
+              assert game['rating'] in ['platinum', 'gold', 'silver', 'bronze', 'borked'], \
+                  f'Invalid rating {game[\"rating\"]} in {game[\"name\"]}'
+          print(f'Validated {len(db[\"games\"])} games in compatibility.json')
+          "
+
+      - name: Validate bundle TOMLs
+        run: |
+          python3 -c "
+          import tomllib, os, json, sys
+          errors = []
+          bundle_dir = 'data/bundles'
+          for f in os.listdir(bundle_dir):
+              if not f.endswith('.toml'):
+                  continue
+              path = os.path.join(bundle_dir, f)
+              try:
+                  with open(path, 'rb') as fh:
+                      data = tomllib.load(fh)
+                  assert 'game' in data, f'{f}: missing [game] section'
+                  assert 'name' in data['game'], f'{f}: missing game.name'
+                  assert 'slug' in data['game'], f'{f}: missing game.slug'
+              except Exception as e:
+                  errors.append(str(e))
+          if errors:
+              for e in errors:
+                  print(f'ERROR: {e}', file=sys.stderr)
+              sys.exit(1)
+          print(f'All bundle TOMLs valid')
+          "
+
+      - name: Cross-reference bundles with compatibility.json
+        run: |
+          python3 -c "
+          import json, os, sys
+          with open('data/compatibility.json') as f:
+              db = json.load(f)
+          bundle_slugs = set()
+          for f in os.listdir('data/bundles'):
+              if f.endswith('.toml'):
+                  bundle_slugs.add(f.replace('.toml', ''))
+          missing = []
+          for game in db['games']:
+              if game.get('bundle_available', False) and game['slug'] not in bundle_slugs:
+                  missing.append(game['slug'])
+          if missing:
+              print(f'ERROR: These games have bundle_available=true but no TOML:', file=sys.stderr)
+              for s in missing:
+                  print(f'  - {s}', file=sys.stderr)
+              sys.exit(1)
+          print('All bundle references are valid')
+          "
