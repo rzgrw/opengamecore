@@ -156,6 +156,13 @@ pub async fn download_and_extract(url: &str, wine_dir: &Path) -> Result<PathBuf>
         .map(|e| e.path())
         .find(|p| !before.contains(p))
         .ok_or_else(|| Error::Download("No new directory found after extraction".into()))?;
+
+    // Remove macOS quarantine attribute so Gatekeeper doesn't block the binaries
+    let _ = std::process::Command::new("xattr")
+        .args(["-rd", "com.apple.quarantine"])
+        .arg(&new_dir)
+        .status();
+
     Ok(new_dir)
 }
 

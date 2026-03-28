@@ -67,7 +67,7 @@ impl Default for WineSettings {
         Self {
             default: String::new(),
             download_urls: vec![
-                "https://github.com/Gcenx/macOS_Wine_builds/releases/download/v9.0/wine-devel-9.0-osx64.tar.xz".into(),
+                "https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.5/wine-devel-11.5-osx64.tar.xz".into(),
             ],
             dxvk_download_url: default_dxvk_url(),
             gptk_info_url: default_gptk_info_url(),
