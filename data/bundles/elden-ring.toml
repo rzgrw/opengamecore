@@ -1,0 +1,20 @@
+[game]
+name = "Elden Ring"
+slug = "elden-ring"
+rating = "gold"
+
+[wine]
+backend = "gptk"
+min_version = "2.0"
+
+[settings]
+dxvk_enabled = false
+env = { WINEESYNC = "1", MTL_HUD_ENABLED = "0" }
+
+[workarounds]
+notes = "Disable EasyAntiCheat. Offline mode recommended."
+
+[install]
+exe_path = "Game/eldenring.exe"
+exe_alternatives = ["eldenring.exe"]
+steam_appid = 1245620

@@ -1,0 +1,17 @@
+[game]
+name = "Stardew Valley"
+slug = "stardew-valley"
+rating = "platinum"
+
+[wine]
+backend = "wine"
+
+[settings]
+dxvk_enabled = false
+env = {}
+
+[install]
+exe_path = "Stardew Valley.exe"
+exe_alternatives = ["StardewValley.exe"]
+steam_appid = 413150
+gog_id = "stardew_valley"

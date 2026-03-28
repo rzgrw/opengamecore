@@ -1,0 +1,18 @@
+[game]
+name = "Baldur's Gate 3"
+slug = "baldurs-gate-3"
+rating = "platinum"
+
+[wine]
+backend = "gptk"
+min_version = "2.0"
+
+[settings]
+dxvk_enabled = false
+env = { WINEESYNC = "1" }
+
+[install]
+exe_path = "bin/bg3_dx11.exe"
+exe_alternatives = ["bg3.exe", "bg3_dx11.exe"]
+steam_appid = 1086940
+gog_id = "baldurs_gate_3"

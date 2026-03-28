@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "last_updated": "2026-03-28",
+  "games": [
+    {
+      "name": "Cyberpunk 2077",
+      "slug": "cyberpunk-2077",
+      "rating": "gold",
+      "confidence": 0.85,
+      "sources": {
+        "protondb": "gold",
+        "winehq": "platinum",
+        "crossover": "supported"
+      },
+      "recommended_backend": "gptk",
+      "bundle_available": true,
+      "steam_appid": 1091500,
+      "gog_id": "cyberpunk_2077",
+      "tags": ["dx12", "open-world", "rpg"],
+      "last_updated": "2026-03-28"
+    },
+    {
+      "name": "Baldur's Gate 3",
+      "slug": "baldurs-gate-3",
+      "rating": "platinum",
+      "confidence": 0.95,
+      "sources": {
+        "protondb": "platinum",
+        "winehq": "gold",
+        "crossover": "supported"
+      },
+      "recommended_backend": "gptk",
+      "bundle_available": true,
+      "steam_appid": 1086940,
+      "gog_id": "baldurs_gate_3",
+      "tags": ["dx11", "rpg", "turn-based"],
+      "last_updated": "2026-03-28"
+    },
+    {
+      "name": "Stardew Valley",
+      "slug": "stardew-valley",
+      "rating": "platinum",
+      "confidence": 0.98,
+      "sources": {
+        "protondb": "platinum",
+        "winehq": "platinum",
+        "crossover": "supported"
+      },
+      "recommended_backend": "wine",
+      "bundle_available": true,
+      "steam_appid": 413150,
+      "gog_id": "stardew_valley",
+      "tags": ["dx9", "indie", "simulation"],
+      "last_updated": "2026-03-28"
+    },
+    {
+      "name": "Elden Ring",
+      "slug": "elden-ring",
+      "rating": "gold",
+      "confidence": 0.80,
+      "sources": {
+        "protondb": "gold",
+        "winehq": "silver",
+        "crossover": "unknown"
+      },
+      "recommended_backend": "gptk",
+      "bundle_available": true,
+      "steam_appid": 1245620,
+      "gog_id": null,
+      "tags": ["dx12", "open-world", "action"],
+      "last_updated": "2026-03-28"
+    },
+    {
+      "name": "The Witcher 3: Wild Hunt",
+      "slug": "the-witcher-3-wild-hunt",
+      "rating": "platinum",
+      "confidence": 0.92,
+      "sources": {
+        "protondb": "platinum",
+        "winehq": "gold",
+        "crossover": "supported"
+      },
+      "recommended_backend": "wine",
+      "bundle_available": true,
+      "steam_appid": 292030,
+      "gog_id": "the_witcher_3_wild_hunt",
+      "tags": ["dx11", "open-world", "rpg"],
+      "last_updated": "2026-03-28"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+[game]
+name = "Cyberpunk 2077"
+slug = "cyberpunk-2077"
+rating = "gold"
+
+[wine]
+backend = "gptk"
+min_version = "2.0"
+
+[settings]
+dxvk_enabled = false
+env = { WINEESYNC = "1", MTL_HUD_ENABLED = "0" }
+
+[workarounds]
+notes = "Disable overlay if crashes on launch"
+
+[install]
+exe_path = "bin/x64/Cyberpunk2077.exe"
+exe_alternatives = ["Cyberpunk2077.exe"]
+steam_appid = 1091500
+gog_id = "cyberpunk_2077"

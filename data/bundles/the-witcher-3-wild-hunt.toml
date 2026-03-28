@@ -1,0 +1,17 @@
+[game]
+name = "The Witcher 3: Wild Hunt"
+slug = "the-witcher-3-wild-hunt"
+rating = "platinum"
+
+[wine]
+backend = "wine"
+
+[settings]
+dxvk_enabled = true
+env = { WINEDEBUG = "-all" }
+
+[install]
+exe_path = "bin/x64/witcher3.exe"
+exe_alternatives = ["witcher3.exe", "Witcher3.exe"]
+steam_appid = 292030
+gog_id = "the_witcher_3_wild_hunt"
