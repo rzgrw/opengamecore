@@ -112,6 +112,7 @@ pub struct AppState {
     pub load_warnings: Vec<String>,
     pub compat_db: Option<CompatDatabase>,
     pub bundles: HashMap<String, BundleConfig>,
+    pub dxvk_dir: Option<PathBuf>,
 }
 
 pub struct App {
@@ -208,6 +209,26 @@ impl App {
                     Err(_) => HashMap::new(),
                 };
 
+                // Detect existing DXVK installation
+                let dxvk_dir = opengamecore_lib::paths::wine_dir().ok().and_then(|wine| {
+                    let dxvk_parent = wine.join("dxvk");
+                    if dxvk_parent.exists() {
+                        std::fs::read_dir(&dxvk_parent)
+                            .ok()?
+                            .flatten()
+                            .find_map(|e| {
+                                let p = e.path();
+                                if p.is_dir() && p.join("x64").exists() {
+                                    Some(p)
+                                } else {
+                                    None
+                                }
+                            })
+                    } else {
+                        None
+                    }
+                });
+
                 Box::new(AppState {
                     config,
                     library,
@@ -216,6 +237,7 @@ impl App {
                     load_warnings,
                     compat_db,
                     bundles,
+                    dxvk_dir,
                 })
             },
             Message::Loaded,
@@ -252,6 +274,7 @@ impl App {
                 self.bottles = state.bottles;
                 self.compat_db = state.compat_db;
                 self.bundles = state.bundles;
+                self.dxvk_dir = state.dxvk_dir;
                 if let Some(warning) = state.load_warnings.first() {
                     self.error_message = Some(warning.clone());
                 }
