@@ -28,6 +28,9 @@ pub enum Error {
 
     #[error("Process error: {0}")]
     Process(String),
+
+    #[error("JSON parse error: {0}")]
+    JsonParse(#[from] serde_json::Error),
 }
 
 impl Error {
@@ -59,6 +62,9 @@ impl Error {
                 format!("Download failed: {}. Check your internet connection.", msg)
             }
             Error::Process(msg) => format!("Process error: {}. The game may have crashed.", msg),
+            Error::JsonParse(_) => {
+                "Failed to parse JSON data file. It may be corrupted.".into()
+            }
         }
     }
 }

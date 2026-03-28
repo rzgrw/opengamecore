@@ -43,6 +43,14 @@ pub fn logs_dir() -> Result<PathBuf> {
     data_dir().map(|d| d.join("logs"))
 }
 
+pub fn compat_db_path() -> Result<PathBuf> {
+    data_dir().map(|d| d.join("compatibility.json"))
+}
+
+pub fn bundles_dir() -> Result<PathBuf> {
+    data_dir().map(|d| d.join("bundles"))
+}
+
 /// Ensure all app directories exist.
 pub fn ensure_dirs() -> Result<()> {
     let dirs = [
