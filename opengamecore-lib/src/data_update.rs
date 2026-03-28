@@ -29,7 +29,11 @@ pub async fn fetch_and_save(url: &str, dest: &Path) -> Result<()> {
         .map_err(|e| Error::Download(e.to_string()))?;
 
     if !response.status().is_success() {
-        return Err(Error::Download(format!("HTTP {}: {}", response.status(), url)));
+        return Err(Error::Download(format!(
+            "HTTP {}: {}",
+            response.status(),
+            url
+        )));
     }
 
     let bytes = response

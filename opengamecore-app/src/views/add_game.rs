@@ -34,30 +34,29 @@ impl Default for AddGameState {
 }
 
 pub fn view(state: &AddGameState) -> Element<'_, Message> {
-    let tab_button =
-        |label: &str, tab: AddGameTab, is_active: bool| -> Element<'static, Message> {
-            let label = label.to_string();
-            button(text(label).size(14).color(if is_active {
-                theme::ACCENT
+    let tab_button = |label: &str, tab: AddGameTab, is_active: bool| -> Element<'static, Message> {
+        let label = label.to_string();
+        button(text(label).size(14).color(if is_active {
+            theme::ACCENT
+        } else {
+            theme::TEXT_SECONDARY
+        }))
+        .on_press(Message::AddGameTabChanged(tab))
+        .padding([8, 16])
+        .style(move |_theme, _status| button::Style {
+            background: if is_active {
+                Some(Background::Color(iced::Color::from_rgba(
+                    1.0, 1.0, 1.0, 0.1,
+                )))
             } else {
-                theme::TEXT_SECONDARY
-            }))
-            .on_press(Message::AddGameTabChanged(tab))
-            .padding([8, 16])
-            .style(move |_theme, _status| button::Style {
-                background: if is_active {
-                    Some(Background::Color(iced::Color::from_rgba(
-                        1.0, 1.0, 1.0, 0.1,
-                    )))
-                } else {
-                    None
-                },
-                text_color: theme::TEXT_PRIMARY,
-                border: Border::default().rounded(4),
-                ..button::Style::default()
-            })
-            .into()
-        };
+                None
+            },
+            text_color: theme::TEXT_PRIMARY,
+            border: Border::default().rounded(4),
+            ..button::Style::default()
+        })
+        .into()
+    };
 
     let tabs = row![
         tab_button(
@@ -90,10 +89,7 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
         AddGameTab::FromFolder => "Select an existing game folder",
     };
 
-    let path_display = state
-        .path
-        .as_deref()
-        .unwrap_or("No file selected");
+    let path_display = state.path.as_deref().unwrap_or("No file selected");
 
     let browse_row = row![
         container(text(path_display).size(13).color(theme::TEXT_SECONDARY))
@@ -126,10 +122,7 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
         .padding(8)
         .size(14);
 
-    let icon_display = state
-        .icon_path
-        .as_deref()
-        .unwrap_or("No icon selected");
+    let icon_display = state.icon_path.as_deref().unwrap_or("No icon selected");
 
     let icon_row = row![
         container(text(icon_display).size(13).color(theme::TEXT_SECONDARY))
@@ -164,9 +157,12 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
                 text(format!("Matched: {}", bundle.game.name))
                     .size(14)
                     .color(theme::ACCENT),
-                text(format!("Rating: {} | Backend: {}", bundle.game.rating, bundle.wine.backend))
-                    .size(12)
-                    .color(theme::TEXT_SECONDARY),
+                text(format!(
+                    "Rating: {} | Backend: {}",
+                    bundle.game.rating, bundle.wine.backend
+                ))
+                .size(12)
+                .color(theme::TEXT_SECONDARY),
             ]
             .spacing(4);
             Some(
@@ -174,7 +170,9 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
                     .padding([8, 12])
                     .width(Length::Fill)
                     .style(|_theme| container::Style {
-                        background: Some(Background::Color(iced::Color::from_rgba(0.0, 1.0, 0.5, 0.05))),
+                        background: Some(Background::Color(iced::Color::from_rgba(
+                            0.0, 1.0, 0.5, 0.05,
+                        ))),
                         border: Border::default().rounded(4),
                         ..container::Style::default()
                     })
@@ -200,32 +198,28 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
         !state.name.is_empty() && state.path.is_some()
     };
 
-    let mut add_btn = button(
-        text("Add Game").size(14).color(theme::BUTTON_GREEN_TEXT),
-    )
-    .padding([8, 20])
-    .style(|_theme, _status| button::Style {
-        background: Some(Background::Color(theme::BUTTON_GREEN)),
-        text_color: theme::BUTTON_GREEN_TEXT,
-        border: Border::default().rounded(6),
-        ..button::Style::default()
-    });
+    let mut add_btn = button(text("Add Game").size(14).color(theme::BUTTON_GREEN_TEXT))
+        .padding([8, 20])
+        .style(|_theme, _status| button::Style {
+            background: Some(Background::Color(theme::BUTTON_GREEN)),
+            text_color: theme::BUTTON_GREEN_TEXT,
+            border: Border::default().rounded(6),
+            ..button::Style::default()
+        });
 
     if can_add {
         add_btn = add_btn.on_press(Message::ConfirmAddGame);
     }
 
-    let cancel_btn = button(
-        text("Cancel").size(14).color(theme::TEXT_SECONDARY),
-    )
-    .on_press(Message::CloseAddGame)
-    .padding([8, 20])
-    .style(|_theme, _status| button::Style {
-        background: None,
-        text_color: theme::TEXT_SECONDARY,
-        border: Border::default(),
-        ..button::Style::default()
-    });
+    let cancel_btn = button(text("Cancel").size(14).color(theme::TEXT_SECONDARY))
+        .on_press(Message::CloseAddGame)
+        .padding([8, 20])
+        .style(|_theme, _status| button::Style {
+            background: None,
+            text_color: theme::TEXT_SECONDARY,
+            border: Border::default(),
+            ..button::Style::default()
+        });
 
     let action_row = row![cancel_btn, add_btn].spacing(12);
 
@@ -245,22 +239,22 @@ pub fn view(state: &AddGameState) -> Element<'_, Message> {
         dialog_content = dialog_content
             .push(text("Game Name").size(13).color(theme::TEXT_SECONDARY))
             .push(name_input)
-            .push(text("Icon (optional)").size(13).color(theme::TEXT_SECONDARY))
+            .push(
+                text("Icon (optional)")
+                    .size(13)
+                    .color(theme::TEXT_SECONDARY),
+            )
             .push(icon_row);
     }
 
     dialog_content = dialog_content.push(action_row);
 
-    let dialog = container(
-        dialog_content
-            .padding(24)
-            .width(400),
-    )
-    .style(|_theme| container::Style {
-        background: Some(Background::Color(theme::BG_SIDEBAR)),
-        border: Border::default().rounded(12),
-        ..container::Style::default()
-    });
+    let dialog =
+        container(dialog_content.padding(24).width(400)).style(|_theme| container::Style {
+            background: Some(Background::Color(theme::BG_SIDEBAR)),
+            border: Border::default().rounded(12),
+            ..container::Style::default()
+        });
 
     container(dialog)
         .width(Length::Fill)

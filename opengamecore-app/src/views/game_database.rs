@@ -26,19 +26,15 @@ fn game_row<'a>(entry: &CompatEntry) -> Element<'a, Message> {
         .color(theme::TEXT_PRIMARY)
         .width(Length::Fill);
 
-    let badge = container(
-        text(rating_label)
-            .size(12)
-            .color(iced::Color::BLACK),
-    )
-    .padding([2, 8])
-    .style(move |_theme| container::Style {
-        background: Some(Background::Color(rating_badge_color)),
-        border: Border::default().rounded(4),
-        ..container::Style::default()
-    });
+    let badge = container(text(rating_label).size(12).color(iced::Color::BLACK))
+        .padding([2, 8])
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(rating_badge_color)),
+            border: Border::default().rounded(4),
+            ..container::Style::default()
+        });
 
-    let backend = text(format!("{}", entry.recommended_backend))
+    let backend = text(entry.recommended_backend.to_string())
         .size(12)
         .color(theme::TEXT_SECONDARY)
         .width(80);
@@ -53,17 +49,15 @@ fn game_row<'a>(entry: &CompatEntry) -> Element<'a, Message> {
         .align_y(iced::Alignment::Center);
 
     if entry.bundle_available {
-        let add_btn = button(
-            text("Add").size(12).color(theme::BUTTON_GREEN_TEXT),
-        )
-        .on_press(Message::SetupFromDatabase(slug))
-        .padding([4, 12])
-        .style(|_theme, _status| button::Style {
-            background: Some(Background::Color(theme::BUTTON_GREEN)),
-            text_color: theme::BUTTON_GREEN_TEXT,
-            border: Border::default().rounded(4),
-            ..button::Style::default()
-        });
+        let add_btn = button(text("Add").size(12).color(theme::BUTTON_GREEN_TEXT))
+            .on_press(Message::SetupFromDatabase(slug))
+            .padding([4, 12])
+            .style(|_theme, _status| button::Style {
+                background: Some(Background::Color(theme::BUTTON_GREEN)),
+                text_color: theme::BUTTON_GREEN_TEXT,
+                border: Border::default().rounded(4),
+                ..button::Style::default()
+            });
         row_content = row_content.push(add_btn);
     }
 
@@ -71,7 +65,9 @@ fn game_row<'a>(entry: &CompatEntry) -> Element<'a, Message> {
         .padding([8, 16])
         .width(Length::Fill)
         .style(|_theme| container::Style {
-            background: Some(Background::Color(iced::Color::from_rgba(1.0, 1.0, 1.0, 0.03))),
+            background: Some(Background::Color(iced::Color::from_rgba(
+                1.0, 1.0, 1.0, 0.03,
+            ))),
             border: Border::default().rounded(4),
             ..container::Style::default()
         })
@@ -93,34 +89,53 @@ pub fn view<'a>(
         .size(14)
         .width(300);
 
-    let filter_btn = |label: &str, rating: Option<CompatRating>, is_active: bool| -> Element<'static, Message> {
-        let label = label.to_string();
-        button(text(label).size(12).color(if is_active {
-            theme::ACCENT
-        } else {
-            theme::TEXT_SECONDARY
-        }))
-        .on_press(Message::FilterRating(rating))
-        .padding([4, 10])
-        .style(move |_theme, _status| button::Style {
-            background: if is_active {
-                Some(Background::Color(iced::Color::from_rgba(1.0, 1.0, 1.0, 0.1)))
+    let filter_btn =
+        |label: &str, rating: Option<CompatRating>, is_active: bool| -> Element<'static, Message> {
+            let label = label.to_string();
+            button(text(label).size(12).color(if is_active {
+                theme::ACCENT
             } else {
-                None
-            },
-            text_color: theme::TEXT_PRIMARY,
-            border: Border::default().rounded(4),
-            ..button::Style::default()
-        })
-        .into()
-    };
+                theme::TEXT_SECONDARY
+            }))
+            .on_press(Message::FilterRating(rating))
+            .padding([4, 10])
+            .style(move |_theme, _status| button::Style {
+                background: if is_active {
+                    Some(Background::Color(iced::Color::from_rgba(
+                        1.0, 1.0, 1.0, 0.1,
+                    )))
+                } else {
+                    None
+                },
+                text_color: theme::TEXT_PRIMARY,
+                border: Border::default().rounded(4),
+                ..button::Style::default()
+            })
+            .into()
+        };
 
     let filters = row![
         filter_btn("All", None, filter_rating.is_none()),
-        filter_btn("Platinum", Some(CompatRating::Platinum), *filter_rating == Some(CompatRating::Platinum)),
-        filter_btn("Gold", Some(CompatRating::Gold), *filter_rating == Some(CompatRating::Gold)),
-        filter_btn("Silver", Some(CompatRating::Silver), *filter_rating == Some(CompatRating::Silver)),
-        filter_btn("Bronze", Some(CompatRating::Bronze), *filter_rating == Some(CompatRating::Bronze)),
+        filter_btn(
+            "Platinum",
+            Some(CompatRating::Platinum),
+            *filter_rating == Some(CompatRating::Platinum)
+        ),
+        filter_btn(
+            "Gold",
+            Some(CompatRating::Gold),
+            *filter_rating == Some(CompatRating::Gold)
+        ),
+        filter_btn(
+            "Silver",
+            Some(CompatRating::Silver),
+            *filter_rating == Some(CompatRating::Silver)
+        ),
+        filter_btn(
+            "Bronze",
+            Some(CompatRating::Bronze),
+            *filter_rating == Some(CompatRating::Bronze)
+        ),
     ]
     .spacing(4);
 
@@ -132,15 +147,17 @@ pub fn view<'a>(
 
     match db {
         Some(db) => {
-            let entries: Vec<&CompatEntry> = db.games.iter().filter(|e| {
-                let matches_search = search_query.is_empty()
-                    || e.name.to_lowercase().contains(&search_query.to_lowercase())
-                    || e.slug.contains(&search_query.to_lowercase());
-                let matches_filter = filter_rating
-                    .as_ref()
-                    .map_or(true, |r| e.rating == *r);
-                matches_search && matches_filter
-            }).collect();
+            let entries: Vec<&CompatEntry> = db
+                .games
+                .iter()
+                .filter(|e| {
+                    let matches_search = search_query.is_empty()
+                        || e.name.to_lowercase().contains(&search_query.to_lowercase())
+                        || e.slug.contains(&search_query.to_lowercase());
+                    let matches_filter = filter_rating.as_ref().is_none_or(|r| e.rating == *r);
+                    matches_search && matches_filter
+                })
+                .collect();
 
             if entries.is_empty() {
                 content = content.push(

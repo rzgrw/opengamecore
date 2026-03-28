@@ -4,6 +4,9 @@ use std::path::PathBuf;
 use iced::widget::{button, column, container, row, text};
 use iced::{Background, Border, Element, Length, Task, Theme};
 
+use crate::views;
+use crate::views::add_game::{AddGameState, AddGameTab};
+use crate::views::first_run::FirstRunPhase;
 use opengamecore_lib::bottle::BottleInfo;
 use opengamecore_lib::bundle::BundleConfig;
 use opengamecore_lib::store_detect::DetectedGame;
@@ -11,9 +14,6 @@ use opengamecore_lib::{
     AppConfig, CompatDatabase, CompatRating, Game, GameLibrary, InstallType, LaunchConfig,
     WineConfig,
 };
-use crate::views;
-use crate::views::add_game::{AddGameState, AddGameTab};
-use crate::views::first_run::FirstRunPhase;
 
 #[derive(Debug, Clone)]
 pub enum Screen {
@@ -97,7 +97,7 @@ pub enum Message {
 
     // Auto-detect in add game
     AutoDetectFolder,
-    AutoDetectResult(Option<BundleConfig>),
+    AutoDetectResult(Box<Option<BundleConfig>>),
 
     // Data update
     DatabaseUpdated(bool),
@@ -183,7 +183,8 @@ impl App {
                 {
                     Ok(c) => c,
                     Err(e) => {
-                        load_warnings.push(format!("Failed to discover Wine: {}", e.user_message()));
+                        load_warnings
+                            .push(format!("Failed to discover Wine: {}", e.user_message()));
                         Vec::new()
                     }
                 };
@@ -198,12 +199,9 @@ impl App {
                     }
                 };
 
-                let compat_db = match opengamecore_lib::paths::compat_db_path()
+                let compat_db = opengamecore_lib::paths::compat_db_path()
                     .and_then(|p| CompatDatabase::load(&p))
-                {
-                    Ok(db) => Some(db),
-                    Err(_) => None,
-                };
+                    .ok();
 
                 let bundles = match opengamecore_lib::paths::bundles_dir() {
                     Ok(p) => opengamecore_lib::bundle::load_bundles(&p).unwrap_or_default(),
@@ -284,7 +282,7 @@ impl App {
                 let is_auto_detect = self
                     .add_game
                     .as_ref()
-                    .map_or(false, |s| s.tab == AddGameTab::AutoDetect);
+                    .is_some_and(|s| s.tab == AddGameTab::AutoDetect);
 
                 if is_auto_detect {
                     return Task::perform(
@@ -314,9 +312,8 @@ impl App {
                 if let Some(ref mut state) = self.add_game {
                     if let Some(ref p) = path {
                         if state.name.is_empty() {
-                            if let Some(stem) = std::path::Path::new(p)
-                                .file_stem()
-                                .and_then(|s| s.to_str())
+                            if let Some(stem) =
+                                std::path::Path::new(p).file_stem().and_then(|s| s.to_str())
                             {
                                 state.name = stem.to_string();
                             }
@@ -391,10 +388,8 @@ impl App {
                                     Ok(applied_slug) => {
                                         if let Ok(path) = opengamecore_lib::paths::games_path() {
                                             if let Err(e) = self.library.save(&path) {
-                                                self.error_message = Some(format!(
-                                                    "Failed to save library: {}",
-                                                    e
-                                                ));
+                                                self.error_message =
+                                                    Some(format!("Failed to save library: {}", e));
                                             }
                                         }
                                         // Create bottle
@@ -403,13 +398,11 @@ impl App {
                                             opengamecore_lib::paths::template_bottle_dir(),
                                             opengamecore_lib::paths::bottle_dir(&slug),
                                         ) {
-                                            if let Err(e) = opengamecore_lib::bottle::create(
-                                                &template, &bottle,
-                                            ) {
-                                                self.error_message = Some(format!(
-                                                    "Failed to create bottle: {}",
-                                                    e
-                                                ));
+                                            if let Err(e) =
+                                                opengamecore_lib::bottle::create(&template, &bottle)
+                                            {
+                                                self.error_message =
+                                                    Some(format!("Failed to create bottle: {}", e));
                                             }
                                         }
                                     }
@@ -435,23 +428,26 @@ impl App {
                     let install_type = match state.tab {
                         AddGameTab::Installer => InstallType::Installer,
                         AddGameTab::Portable => InstallType::Portable,
-                        AddGameTab::FromFolder | AddGameTab::AutoDetect => InstallType::FolderInstall,
+                        AddGameTab::FromFolder | AddGameTab::AutoDetect => {
+                            InstallType::FolderInstall
+                        }
                     };
 
                     let exe = state.path.unwrap_or_default();
 
-                    let icon_path = state.icon_path.and_then(|ip| {
-                        match opengamecore_lib::library::set_game_icon(
-                            &slug,
-                            std::path::Path::new(&ip),
-                        ) {
-                            Ok(p) => Some(p.to_string_lossy().to_string()),
-                            Err(e) => {
-                                eprintln!("Warning: could not set game icon: {}", e);
-                                None
-                            }
-                        }
-                    });
+                    let icon_path =
+                        state.icon_path.and_then(
+                            |ip| match opengamecore_lib::library::set_game_icon(
+                                &slug,
+                                std::path::Path::new(&ip),
+                            ) {
+                                Ok(p) => Some(p.to_string_lossy().to_string()),
+                                Err(e) => {
+                                    eprintln!("Warning: could not set game icon: {}", e);
+                                    None
+                                }
+                            },
+                        );
 
                     let game = Game {
                         name: state.name,
@@ -475,8 +471,7 @@ impl App {
                     // Save library
                     if let Ok(path) = opengamecore_lib::paths::games_path() {
                         if let Err(e) = self.library.save(&path) {
-                            self.error_message =
-                                Some(format!("Failed to save library: {}", e));
+                            self.error_message = Some(format!("Failed to save library: {}", e));
                         }
                     }
 
@@ -507,10 +502,8 @@ impl App {
             // Game actions
             Message::PlayGame(slug) => {
                 if let Some(game) = self.library.find(&slug) {
-                    let wine = opengamecore_lib::wine::resolve(
-                        &self.wine_configs,
-                        &game.wine_config,
-                    );
+                    let wine =
+                        opengamecore_lib::wine::resolve(&self.wine_configs, &game.wine_config);
 
                     match wine {
                         Ok(wine) => {
@@ -528,9 +521,7 @@ impl App {
                                     // Update last_played
                                     if let Some(game_mut) = self.library.find_mut(&slug) {
                                         game_mut.last_played = Some(chrono::Utc::now());
-                                        if let Ok(path) =
-                                            opengamecore_lib::paths::games_path()
-                                        {
+                                        if let Ok(path) = opengamecore_lib::paths::games_path() {
                                             if let Err(e) = self.library.save(&path) {
                                                 self.error_message = Some(format!(
                                                     "Failed to save play time: {}",
@@ -551,31 +542,28 @@ impl App {
                                             .await
                                             {
                                                 Ok(result) => Box::new(result),
-                                                Err(e) => Box::new(
-                                                    opengamecore_lib::runner::RunResult {
+                                                Err(e) => {
+                                                    Box::new(opengamecore_lib::runner::RunResult {
                                                         slug: slug_clone,
                                                         exit_code: None,
                                                         stdout: String::new(),
                                                         stderr: e.to_string(),
                                                         duration_secs: 0.0,
-                                                    },
-                                                ),
+                                                    })
+                                                }
                                             }
                                         },
-                                        |result| Message::GameExited(result),
+                                        Message::GameExited,
                                     );
                                 }
                                 Err(e) => {
-                                    self.error_message = Some(format!(
-                                        "Failed to resolve bottle directory: {}",
-                                        e
-                                    ));
+                                    self.error_message =
+                                        Some(format!("Failed to resolve bottle directory: {}", e));
                                 }
                             }
                         }
                         Err(e) => {
-                            self.error_message =
-                                Some(e.user_message());
+                            self.error_message = Some(e.user_message());
                         }
                     }
                 }
@@ -587,7 +575,7 @@ impl App {
                     self.error_message = Some(format!("Failed to save game log: {}", e));
                 }
                 // Show error if game crashed
-                if result.exit_code.map_or(false, |c| c != 0) {
+                if result.exit_code.is_some_and(|c| c != 0) {
                     self.error_message = Some(format!(
                         "'{}' exited with code {}. Check logs for details.",
                         result.slug,
@@ -603,8 +591,7 @@ impl App {
                     opengamecore_lib::paths::bottle_dir(&slug),
                 ) {
                     if let Err(e) = opengamecore_lib::bottle::reset(&template, &bottle) {
-                        self.error_message =
-                            Some(format!("Failed to reset bottle: {}", e));
+                        self.error_message = Some(format!("Failed to reset bottle: {}", e));
                     }
                 }
                 return Task::perform(
@@ -620,8 +607,7 @@ impl App {
             Message::DeleteBottle(slug) => {
                 if let Ok(bottle) = opengamecore_lib::paths::bottle_dir(&slug) {
                     if let Err(e) = opengamecore_lib::bottle::delete(&bottle) {
-                        self.error_message =
-                            Some(format!("Failed to delete bottle: {}", e));
+                        self.error_message = Some(format!("Failed to delete bottle: {}", e));
                     }
                 }
                 return Task::perform(
@@ -643,8 +629,7 @@ impl App {
                 self.config.wine.default = name;
                 if let Ok(path) = opengamecore_lib::paths::config_path() {
                     if let Err(e) = self.config.save(&path) {
-                        self.error_message =
-                            Some(format!("Failed to save settings: {}", e));
+                        self.error_message = Some(format!("Failed to save settings: {}", e));
                     }
                 }
             }
@@ -692,8 +677,8 @@ impl App {
                 let url = self.config.wine.dxvk_download_url.clone();
                 return Task::perform(
                     async move {
-                        let data_dir = opengamecore_lib::paths::wine_dir()
-                            .map_err(|e| e.to_string())?;
+                        let data_dir =
+                            opengamecore_lib::paths::wine_dir().map_err(|e| e.to_string())?;
                         opengamecore_lib::dxvk::download_and_extract(&url, &data_dir)
                             .await
                             .map_err(|e| e.to_string())
@@ -726,8 +711,7 @@ impl App {
                     &self.library,
                     std::path::Path::new(&path),
                 ) {
-                    self.error_message =
-                        Some(format!("Failed to export library: {}", e));
+                    self.error_message = Some(format!("Failed to export library: {}", e));
                 }
             }
             Message::ExportLibraryPath(None) => {}
@@ -759,8 +743,7 @@ impl App {
                         return Task::done(Message::LibraryImported(count));
                     }
                     Err(e) => {
-                        self.error_message =
-                            Some(format!("Failed to import library: {}", e));
+                        self.error_message = Some(format!("Failed to import library: {}", e));
                     }
                 }
             }
@@ -791,9 +774,10 @@ impl App {
                             Err(e) => return Err(e.to_string()),
                         };
 
-                        let extracted = opengamecore_lib::wine::download_and_extract(&url, &wine_dir)
-                            .await
-                            .map_err(|e| e.to_string())?;
+                        let extracted =
+                            opengamecore_lib::wine::download_and_extract(&url, &wine_dir)
+                                .await
+                                .map_err(|e| e.to_string())?;
 
                         // Find the wine binary in extracted dir
                         let configs = opengamecore_lib::wine::discover(&wine_dir)
@@ -802,11 +786,8 @@ impl App {
                         if let Some(wine) = configs.first() {
                             let template = opengamecore_lib::paths::template_bottle_dir()
                                 .map_err(|e| e.to_string())?;
-                            opengamecore_lib::bottle::create_template(
-                                &wine.binary_path,
-                                &template,
-                            )
-                            .map_err(|e| e.to_string())?;
+                            opengamecore_lib::bottle::create_template(&wine.binary_path, &template)
+                                .map_err(|e| e.to_string())?;
                         }
 
                         let _ = extracted;
@@ -822,8 +803,7 @@ impl App {
                 self.config.app.first_run_complete = true;
                 if let Ok(path) = opengamecore_lib::paths::config_path() {
                     if let Err(e) = self.config.save(&path) {
-                        self.error_message =
-                            Some(format!("Failed to save configuration: {}", e));
+                        self.error_message = Some(format!("Failed to save configuration: {}", e));
                     }
                 }
                 self.screen = Screen::Library;
@@ -832,8 +812,7 @@ impl App {
                 self.config.app.first_run_complete = true;
                 if let Ok(path) = opengamecore_lib::paths::config_path() {
                     if let Err(e) = self.config.save(&path) {
-                        self.error_message =
-                            Some(format!("Failed to save configuration: {}", e));
+                        self.error_message = Some(format!("Failed to save configuration: {}", e));
                     }
                 }
                 self.screen = Screen::Library;
@@ -848,7 +827,7 @@ impl App {
                     }
                     Ok(_) => {
                         self.error_message = Some(
-                            "Wine was downloaded but no binary was found. Check Settings.".into()
+                            "Wine was downloaded but no binary was found. Check Settings.".into(),
                         );
                     }
                     Err(e) => {
@@ -911,8 +890,7 @@ impl App {
                                 opengamecore_lib::paths::template_bottle_dir(),
                                 opengamecore_lib::paths::bottle_dir(&slug),
                             ) {
-                                if let Err(e) =
-                                    opengamecore_lib::bottle::create(&template, &bottle)
+                                if let Err(e) = opengamecore_lib::bottle::create(&template, &bottle)
                                 {
                                     self.error_message =
                                         Some(format!("Failed to create bottle: {}", e));
@@ -920,8 +898,7 @@ impl App {
                             }
                         }
                         Err(e) => {
-                            self.error_message =
-                                Some(format!("Failed to apply bundle: {}", e));
+                            self.error_message = Some(format!("Failed to apply bundle: {}", e));
                         }
                     }
                 } else {
@@ -945,10 +922,8 @@ impl App {
                 return Task::perform(
                     async move {
                         match compat_db {
-                            Some(db) => {
-                                opengamecore_lib::store_detect::detect_installed_games(&db)
-                                    .unwrap_or_default()
-                            }
+                            Some(db) => opengamecore_lib::store_detect::detect_installed_games(&db)
+                                .unwrap_or_default(),
                             None => Vec::new(),
                         }
                     },
@@ -980,20 +955,17 @@ impl App {
                         match handle {
                             Some(h) => {
                                 let path = h.path().to_path_buf();
-                                opengamecore_lib::bundle::match_bundle_for_folder(
-                                    &path,
-                                    &bundles,
-                                )
+                                opengamecore_lib::bundle::match_bundle_for_folder(&path, &bundles)
                             }
                             None => None,
                         }
                     },
-                    Message::AutoDetectResult,
+                    |b| Message::AutoDetectResult(Box::new(b)),
                 );
             }
             Message::AutoDetectResult(bundle) => {
                 if let Some(ref mut state) = self.add_game {
-                    state.matched_bundle = bundle;
+                    state.matched_bundle = *bundle;
                 }
             }
 
@@ -1037,20 +1009,16 @@ impl App {
 
         // Wrap main content with optional error banner
         let main_content: Element<'_, Message> = if let Some(ref msg) = self.error_message {
-            let error_text = text(msg.clone())
-                .size(14)
-                .color(iced::Color::WHITE);
-            let dismiss_btn = button(
-                text("X").size(14).color(iced::Color::WHITE),
-            )
-            .on_press(Message::DismissError)
-            .padding([2, 8])
-            .style(|_theme, _status| button::Style {
-                background: None,
-                text_color: iced::Color::WHITE,
-                border: Border::default(),
-                ..button::Style::default()
-            });
+            let error_text = text(msg.clone()).size(14).color(iced::Color::WHITE);
+            let dismiss_btn = button(text("X").size(14).color(iced::Color::WHITE))
+                .on_press(Message::DismissError)
+                .padding([2, 8])
+                .style(|_theme, _status| button::Style {
+                    background: None,
+                    text_color: iced::Color::WHITE,
+                    border: Border::default(),
+                    ..button::Style::default()
+                });
 
             let error_banner = container(
                 row![error_text, dismiss_btn]
@@ -1060,9 +1028,7 @@ impl App {
             .width(Length::Fill)
             .padding([8, 16])
             .style(|_theme| container::Style {
-                background: Some(Background::Color(iced::Color::from_rgb(
-                    0.8, 0.2, 0.15,
-                ))),
+                background: Some(Background::Color(iced::Color::from_rgb(0.8, 0.2, 0.15))),
                 ..container::Style::default()
             });
 

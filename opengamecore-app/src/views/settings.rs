@@ -17,38 +17,31 @@ pub fn view<'a>(
     // Library section
     let library_header = text("Library").size(18).color(theme::TEXT_PRIMARY);
 
-    let export_btn = button(
-        text("Export Library").size(14).color(theme::ACCENT),
-    )
-    .on_press(Message::ExportLibrary)
-    .padding([8, 16])
-    .style(|_theme, _status| button::Style {
-        background: Some(Background::Color(iced::Color::from_rgba(
-            1.0, 1.0, 1.0, 0.05,
-        ))),
-        text_color: theme::ACCENT,
-        border: Border::default().rounded(6),
-        ..button::Style::default()
-    });
+    let export_btn = button(text("Export Library").size(14).color(theme::ACCENT))
+        .on_press(Message::ExportLibrary)
+        .padding([8, 16])
+        .style(|_theme, _status| button::Style {
+            background: Some(Background::Color(iced::Color::from_rgba(
+                1.0, 1.0, 1.0, 0.05,
+            ))),
+            text_color: theme::ACCENT,
+            border: Border::default().rounded(6),
+            ..button::Style::default()
+        });
 
-    let import_btn = button(
-        text("Import Library").size(14).color(theme::ACCENT),
-    )
-    .on_press(Message::ImportLibrary)
-    .padding([8, 16])
-    .style(|_theme, _status| button::Style {
-        background: Some(Background::Color(iced::Color::from_rgba(
-            1.0, 1.0, 1.0, 0.05,
-        ))),
-        text_color: theme::ACCENT,
-        border: Border::default().rounded(6),
-        ..button::Style::default()
-    });
+    let import_btn = button(text("Import Library").size(14).color(theme::ACCENT))
+        .on_press(Message::ImportLibrary)
+        .padding([8, 16])
+        .style(|_theme, _status| button::Style {
+            background: Some(Background::Color(iced::Color::from_rgba(
+                1.0, 1.0, 1.0, 0.05,
+            ))),
+            text_color: theme::ACCENT,
+            border: Border::default().rounded(6),
+            ..button::Style::default()
+        });
 
-    let library_section = column![
-        row![export_btn, import_btn].spacing(8),
-    ]
-    .spacing(8);
+    let library_section = column![row![export_btn, import_btn].spacing(8),].spacing(8);
 
     // Wine installations section
     let wine_header = text("Wine Installations")
@@ -124,21 +117,17 @@ pub fn view<'a>(
         }
     }
 
-    let add_wine_btn = button(
-        text("+ Add Custom Wine Path")
-            .size(14)
-            .color(theme::ACCENT),
-    )
-    .on_press(Message::AddCustomWinePath)
-    .padding([8, 16])
-    .style(|_theme, _status| button::Style {
-        background: Some(Background::Color(iced::Color::from_rgba(
-            1.0, 1.0, 1.0, 0.05,
-        ))),
-        text_color: theme::ACCENT,
-        border: Border::default().rounded(6),
-        ..button::Style::default()
-    });
+    let add_wine_btn = button(text("+ Add Custom Wine Path").size(14).color(theme::ACCENT))
+        .on_press(Message::AddCustomWinePath)
+        .padding([8, 16])
+        .style(|_theme, _status| button::Style {
+            background: Some(Background::Color(iced::Color::from_rgba(
+                1.0, 1.0, 1.0, 0.05,
+            ))),
+            text_color: theme::ACCENT,
+            border: Border::default().rounded(6),
+            ..button::Style::default()
+        });
 
     // GPTK section
     let gptk_header = text("Game Porting Toolkit")
@@ -190,25 +179,21 @@ pub fn view<'a>(
     };
 
     // Download sources section
-    let sources_header = text("Download Sources")
-        .size(18)
-        .color(theme::TEXT_PRIMARY);
+    let sources_header = text("Download Sources").size(18).color(theme::TEXT_PRIMARY);
 
     let mut sources_list = column![].spacing(4);
     for url in download_urls {
         sources_list = sources_list.push(
-            container(
-                text(url).size(12).color(theme::TEXT_SECONDARY),
-            )
-            .padding([8, 12])
-            .width(Length::Fill)
-            .style(|_theme| container::Style {
-                background: Some(Background::Color(iced::Color::from_rgba(
-                    0.0, 0.0, 0.0, 0.2,
-                ))),
-                border: Border::default().rounded(4),
-                ..container::Style::default()
-            }),
+            container(text(url).size(12).color(theme::TEXT_SECONDARY))
+                .padding([8, 12])
+                .width(Length::Fill)
+                .style(|_theme| container::Style {
+                    background: Some(Background::Color(iced::Color::from_rgba(
+                        0.0, 0.0, 0.0, 0.2,
+                    ))),
+                    border: Border::default().rounded(4),
+                    ..container::Style::default()
+                }),
         );
     }
 
@@ -226,7 +211,9 @@ pub fn view<'a>(
     };
 
     let download_dxvk_btn = button(
-        text("Download DXVK").size(14).color(theme::BUTTON_GREEN_TEXT),
+        text("Download DXVK")
+            .size(14)
+            .color(theme::BUTTON_GREEN_TEXT),
     )
     .on_press(Message::DownloadDxvk)
     .padding([8, 16])
@@ -237,11 +224,7 @@ pub fn view<'a>(
         ..button::Style::default()
     });
 
-    let dxvk_section = column![
-        dxvk_status_text,
-        download_dxvk_btn,
-    ]
-    .spacing(8);
+    let dxvk_section = column![dxvk_status_text, download_dxvk_btn,].spacing(8);
 
     let content = column![
         library_header,

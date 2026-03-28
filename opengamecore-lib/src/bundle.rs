@@ -100,7 +100,7 @@ fn scan_exe_recursive(dir: &Path, max_depth: u32, current_depth: u32, results: &
         if path.is_dir() {
             scan_exe_recursive(&path, max_depth, current_depth + 1, results);
         } else if let Some(ext) = path.extension() {
-            if ext.to_ascii_lowercase() == "exe" {
+            if ext.eq_ignore_ascii_case("exe") {
                 results.push(path);
             }
         }

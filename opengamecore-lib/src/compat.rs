@@ -27,7 +27,10 @@ impl CompatRating {
     }
 
     pub fn is_playable(&self) -> bool {
-        matches!(self, CompatRating::Platinum | CompatRating::Gold | CompatRating::Silver)
+        matches!(
+            self,
+            CompatRating::Platinum | CompatRating::Gold | CompatRating::Silver
+        )
     }
 }
 
@@ -76,7 +79,9 @@ impl CompatDatabase {
     }
 
     pub fn find_by_gog_id(&self, gog_id: &str) -> Option<&CompatEntry> {
-        self.games.iter().find(|g| g.gog_id.as_deref() == Some(gog_id))
+        self.games
+            .iter()
+            .find(|g| g.gog_id.as_deref() == Some(gog_id))
     }
 
     pub fn search(&self, query: &str) -> Vec<&CompatEntry> {
@@ -84,8 +89,7 @@ impl CompatDatabase {
         self.games
             .iter()
             .filter(|g| {
-                g.name.to_lowercase().contains(&query_lower)
-                    || g.slug.contains(&query_lower)
+                g.name.to_lowercase().contains(&query_lower) || g.slug.contains(&query_lower)
             })
             .collect()
     }

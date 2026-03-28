@@ -12,7 +12,10 @@ const EXIT_USER_ERROR: i32 = 1;
 const EXIT_SYSTEM_ERROR: i32 = 2;
 
 #[derive(Parser)]
-#[command(name = "ogc", about = "OpenGameCore CLI - Wine game launcher for macOS")]
+#[command(
+    name = "ogc",
+    about = "OpenGameCore CLI - Wine game launcher for macOS"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -123,9 +126,12 @@ async fn main() {
 
     match cli.command {
         Commands::List => cmd_list(),
-        Commands::Add { name, exe, install_type, icon } => {
-            cmd_add(&name, &exe, &install_type, icon.as_deref())
-        }
+        Commands::Add {
+            name,
+            exe,
+            install_type,
+            icon,
+        } => cmd_add(&name, &exe, &install_type, icon.as_deref()),
         Commands::Remove { slug } => cmd_remove(&slug),
         Commands::Run { slug, dxvk } => cmd_run(&slug, dxvk).await,
         Commands::Wine => cmd_wine(),
@@ -177,7 +183,10 @@ fn cmd_list() {
         println!("No games in library. Use 'ogc add' to add a game.");
         return;
     }
-    println!("{:<20} {:<30} {:<40} {:<15} {}", "SLUG", "NAME", "EXE", "WINE", "DXVK");
+    println!(
+        "{:<20} {:<30} {:<40} {:<15} DXVK",
+        "SLUG", "NAME", "EXE", "WINE"
+    );
     println!("{}", "-".repeat(110));
     for game in &lib.games {
         println!(
@@ -306,7 +315,10 @@ fn cmd_remove(slug: &str) {
     let bottle_dir = match paths::bottle_dir(slug) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Warning: could not resolve bottle dir: {}", e.user_message());
+            eprintln!(
+                "Warning: could not resolve bottle dir: {}",
+                e.user_message()
+            );
             println!("Game '{}' removed from library.", slug);
             return;
         }
@@ -328,7 +340,10 @@ async fn cmd_run(slug: &str, dxvk: bool) {
     let game = match lib.find(slug) {
         Some(g) => g,
         None => {
-            eprintln!("Game '{}' not found. Use 'ogc list' to see available games.", slug);
+            eprintln!(
+                "Game '{}' not found. Use 'ogc list' to see available games.",
+                slug
+            );
             std::process::exit(EXIT_USER_ERROR);
         }
     };
@@ -366,7 +381,13 @@ async fn cmd_run(slug: &str, dxvk: bool) {
     };
 
     let dxvk_enabled = dxvk || game.dxvk_enabled;
-    let launch_config = LaunchConfig::new(&wine_config, &bottle_dir, &game.exe, &game.env, dxvk_enabled);
+    let launch_config = LaunchConfig::new(
+        &wine_config,
+        &bottle_dir,
+        &game.exe,
+        &game.env,
+        dxvk_enabled,
+    );
 
     println!(
         "Launching '{}' with Wine at {}...",
@@ -421,7 +442,7 @@ fn cmd_wine() {
         return;
     }
 
-    println!("{:<30} {}", "NAME", "BINARY PATH");
+    println!("{:<30} BINARY PATH", "NAME");
     println!("{}", "-".repeat(80));
     for cfg in &configs {
         println!("{:<30} {}", cfg.name, cfg.binary_path.display());
@@ -450,11 +471,16 @@ fn cmd_bottles() {
         return;
     }
 
-    println!("{:<30} {:<15} {}", "SLUG", "SIZE", "PATH");
+    println!("{:<30} {:<15} PATH", "SLUG", "SIZE");
     println!("{}", "-".repeat(90));
     for b in &bottles {
         let size_mb = b.size_bytes as f64 / (1024.0 * 1024.0);
-        println!("{:<30} {:<15} {}", b.slug, format!("{:.1} MB", size_mb), b.path.display());
+        println!(
+            "{:<30} {:<15} {}",
+            b.slug,
+            format!("{:.1} MB", size_mb),
+            b.path.display()
+        );
     }
 }
 
@@ -462,7 +488,10 @@ fn cmd_reset_bottle(slug: &str) {
     // Validate the game exists before attempting reset
     let lib = load_library();
     if lib.find(slug).is_none() {
-        eprintln!("Game '{}' not found. Use 'ogc list' to see available games.", slug);
+        eprintln!(
+            "Game '{}' not found. Use 'ogc list' to see available games.",
+            slug
+        );
         std::process::exit(EXIT_USER_ERROR);
     }
 
@@ -591,8 +620,8 @@ fn cmd_detect() {
     }
 
     println!(
-        "{:<30} {:<8} {:<10} {:<8} {}",
-        "NAME", "STORE", "RATING", "BUNDLE", "PATH"
+        "{:<30} {:<8} {:<10} {:<8} PATH",
+        "NAME", "STORE", "RATING", "BUNDLE"
     );
     println!("{}", "-".repeat(100));
     for game in &games {
@@ -600,11 +629,7 @@ fn cmd_detect() {
             store_detect::GameStore::Steam => "Steam",
             store_detect::GameStore::Gog => "GOG",
         };
-        let rating = game
-            .rating
-            .as_ref()
-            .map(|r| r.label())
-            .unwrap_or("Unknown");
+        let rating = game.rating.as_ref().map(|r| r.label()).unwrap_or("Unknown");
         let bundle_str = if game.bundle_available { "yes" } else { "no" };
         println!(
             "{:<30} {:<8} {:<10} {:<8} {}",
@@ -643,7 +668,7 @@ fn cmd_database(query: &str, rating_filter: Option<&str>) {
             let matches_query = query.is_empty()
                 || e.name.to_lowercase().contains(&query.to_lowercase())
                 || e.slug.contains(&query.to_lowercase());
-            let matches_rating = rating.as_ref().map_or(true, |r| e.rating == *r);
+            let matches_rating = rating.as_ref().is_none_or(|r| e.rating == *r);
             matches_query && matches_rating
         })
         .collect();
@@ -654,8 +679,8 @@ fn cmd_database(query: &str, rating_filter: Option<&str>) {
     }
 
     println!(
-        "{:<30} {:<10} {:<8} {:<10} {}",
-        "NAME", "RATING", "CONF", "BACKEND", "BUNDLE"
+        "{:<30} {:<10} {:<8} {:<10} BUNDLE",
+        "NAME", "RATING", "CONF", "BACKEND"
     );
     println!("{}", "-".repeat(80));
     for entry in &results {
@@ -665,11 +690,7 @@ fn cmd_database(query: &str, rating_filter: Option<&str>) {
             entry.rating.label(),
             format!("{:.0}%", entry.confidence * 100.0),
             entry.recommended_backend,
-            if entry.bundle_available {
-                "yes"
-            } else {
-                "no"
-            }
+            if entry.bundle_available { "yes" } else { "no" }
         );
     }
     println!("\n{} game(s) found.", results.len());
@@ -695,10 +716,7 @@ fn cmd_setup(slug: &str, game_path: Option<&std::path::Path>) {
     let bundle_config = match bundles.get(slug) {
         Some(b) => b,
         None => {
-            eprintln!(
-                "No bundle found for '{}'. Available bundles:",
-                slug
-            );
+            eprintln!("No bundle found for '{}'. Available bundles:", slug);
             for key in bundles.keys() {
                 eprintln!("  - {}", key);
             }
@@ -721,10 +739,9 @@ fn cmd_setup(slug: &str, game_path: Option<&std::path::Path>) {
             save_library(&lib);
 
             // Create bottle from template
-            if let (Ok(template), Ok(bottle_path)) = (
-                paths::template_bottle_dir(),
-                paths::bottle_dir(&game_slug),
-            ) {
+            if let (Ok(template), Ok(bottle_path)) =
+                (paths::template_bottle_dir(), paths::bottle_dir(&game_slug))
+            {
                 if template.exists() {
                     match bottle::create(&template, &bottle_path) {
                         Ok(()) => println!("Bottle created for '{}'.", game_slug),

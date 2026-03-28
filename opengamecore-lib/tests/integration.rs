@@ -233,7 +233,10 @@ fn dxvk_lifecycle() {
     for dll in &["d3d9", "d3d10core", "d3d11", "dxgi"] {
         let backup = bottle.join(format!("drive_c/windows/system32/{}.dll.orig", dll));
         assert!(backup.exists());
-        assert_eq!(std::fs::read_to_string(&backup).unwrap(), "original wine dll");
+        assert_eq!(
+            std::fs::read_to_string(&backup).unwrap(),
+            "original wine dll"
+        );
     }
 
     // Uninstall
@@ -255,9 +258,7 @@ fn launch_config_assembly() {
         env_overrides: HashMap::from([("WINEDEBUG".into(), "-all".into())]),
     };
 
-    let game_env = HashMap::from([
-        ("DXVK_HUD".into(), "fps".into()),
-    ]);
+    let game_env = HashMap::from([("DXVK_HUD".into(), "fps".into())]);
 
     // Without DXVK
     let config = LaunchConfig::new(
@@ -280,7 +281,11 @@ fn launch_config_assembly() {
         true,
     );
     assert!(config.env.get("WINEDLLOVERRIDES").is_some());
-    assert!(config.env.get("WINEDLLOVERRIDES").unwrap().contains("d3d11=n"));
+    assert!(config
+        .env
+        .get("WINEDLLOVERRIDES")
+        .unwrap()
+        .contains("d3d11=n"));
 }
 
 // ===== Viral features integration tests =====
@@ -372,29 +377,21 @@ fn store_detection_pipeline() {
     )
     .unwrap();
 
-    let games =
-        opengamecore_lib::store_detect::detect_steam_games(&steamapps, &db).unwrap();
+    let games = opengamecore_lib::store_detect::detect_steam_games(&steamapps, &db).unwrap();
     assert_eq!(games.len(), 1);
     assert_eq!(games[0].name, "Cyberpunk 2077");
-    assert_eq!(
-        games[0].rating,
-        Some(opengamecore_lib::CompatRating::Gold)
-    );
+    assert_eq!(games[0].rating, Some(opengamecore_lib::CompatRating::Gold));
     assert!(games[0].bundle_available);
 }
 
 /// Integration: full pipeline — detect → find bundle → apply → verify library
 #[test]
 fn full_viral_pipeline() {
-    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap();
-    let db = opengamecore_lib::compat::CompatDatabase::load(
-        &repo_root.join("data/compatibility.json"),
-    )
-    .unwrap();
-    let bundles =
-        opengamecore_lib::bundle::load_bundles(&repo_root.join("data/bundles")).unwrap();
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let db =
+        opengamecore_lib::compat::CompatDatabase::load(&repo_root.join("data/compatibility.json"))
+            .unwrap();
+    let bundles = opengamecore_lib::bundle::load_bundles(&repo_root.join("data/bundles")).unwrap();
 
     // Create mock Steam directory
     let tmp = TempDir::new().unwrap();
@@ -416,8 +413,7 @@ fn full_viral_pipeline() {
     .unwrap();
 
     // Detect
-    let detected =
-        opengamecore_lib::store_detect::detect_steam_games(&steamapps, &db).unwrap();
+    let detected = opengamecore_lib::store_detect::detect_steam_games(&steamapps, &db).unwrap();
     assert_eq!(detected.len(), 1);
     assert!(detected[0].bundle_available);
 
@@ -427,12 +423,8 @@ fn full_viral_pipeline() {
 
     // Apply
     let mut lib = GameLibrary::default();
-    let slug = opengamecore_lib::bundle::apply_bundle(
-        &matched.unwrap(),
-        &game_dir,
-        &mut lib,
-    )
-    .unwrap();
+    let slug =
+        opengamecore_lib::bundle::apply_bundle(&matched.unwrap(), &game_dir, &mut lib).unwrap();
 
     // Verify
     let game = lib.find(&slug).unwrap();

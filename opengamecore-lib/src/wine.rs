@@ -105,16 +105,10 @@ fn find_wine_binary(dir: &Path) -> Option<PathBuf> {
 }
 
 /// Download and extract a Wine build.
-pub async fn download_and_extract(
-    url: &str,
-    wine_dir: &Path,
-) -> Result<PathBuf> {
+pub async fn download_and_extract(url: &str, wine_dir: &Path) -> Result<PathBuf> {
     std::fs::create_dir_all(wine_dir)?;
 
-    let archive_name = url
-        .split('/')
-        .last()
-        .unwrap_or("wine.tar.xz");
+    let archive_name = url.split('/').next_back().unwrap_or("wine.tar.xz");
     let archive_path = wine_dir.join(archive_name);
 
     let response = reqwest::get(url)
@@ -193,10 +187,7 @@ mod tests {
         std::fs::create_dir(&bin).unwrap();
         std::fs::write(bin.join("wine64"), "fake").unwrap();
 
-        assert_eq!(
-            find_wine_binary(tmp.path()),
-            Some(bin.join("wine64"))
-        );
+        assert_eq!(find_wine_binary(tmp.path()), Some(bin.join("wine64")));
     }
 
     #[test]
@@ -206,10 +197,7 @@ mod tests {
         std::fs::create_dir_all(&nested).unwrap();
         std::fs::write(nested.join("wine"), "fake").unwrap();
 
-        assert_eq!(
-            find_wine_binary(tmp.path()),
-            Some(nested.join("wine"))
-        );
+        assert_eq!(find_wine_binary(tmp.path()), Some(nested.join("wine")));
     }
 
     #[test]
@@ -231,13 +219,11 @@ mod tests {
 
     #[test]
     fn resolve_default_picks_first() {
-        let configs = vec![
-            WineConfig {
-                name: "wine-9.0".into(),
-                binary_path: "/fake/bin/wine".into(),
-                env_overrides: Default::default(),
-            },
-        ];
+        let configs = vec![WineConfig {
+            name: "wine-9.0".into(),
+            binary_path: "/fake/bin/wine".into(),
+            env_overrides: Default::default(),
+        }];
         let resolved = resolve(&configs, "default").unwrap();
         assert_eq!(resolved.name, "wine-9.0");
     }
@@ -275,13 +261,11 @@ mod tests {
 
     #[test]
     fn resolve_empty_string_picks_first() {
-        let configs = vec![
-            WineConfig {
-                name: "wine-9.0".into(),
-                binary_path: "/fake/bin/wine".into(),
-                env_overrides: Default::default(),
-            },
-        ];
+        let configs = vec![WineConfig {
+            name: "wine-9.0".into(),
+            binary_path: "/fake/bin/wine".into(),
+            env_overrides: Default::default(),
+        }];
         let resolved = resolve(&configs, "").unwrap();
         assert_eq!(resolved.name, "wine-9.0");
     }

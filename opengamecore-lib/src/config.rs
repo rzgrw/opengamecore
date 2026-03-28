@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
     pub wine: WineSettings,
@@ -62,15 +62,6 @@ pub struct WineConfig {
     pub env_overrides: HashMap<String, String>,
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            wine: WineSettings::default(),
-            app: AppSettings::default(),
-        }
-    }
-}
-
 impl Default for WineSettings {
     fn default() -> Self {
         Self {
@@ -99,7 +90,11 @@ impl AppConfig {
     pub fn load(path: &std::path::Path) -> Result<Self> {
         // Try to restore from backup if file is missing or corrupt
         if let Err(e) = crate::fs_utils::restore_from_backup(path) {
-            eprintln!("Warning: failed to restore backup for {}: {}", path.display(), e);
+            eprintln!(
+                "Warning: failed to restore backup for {}: {}",
+                path.display(),
+                e
+            );
         }
 
         if path.exists() {

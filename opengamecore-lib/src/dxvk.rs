@@ -1,6 +1,6 @@
+use crate::error::{Error, Result};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use crate::error::{Error, Result};
 
 /// DXVK DLL names that get installed into Wine bottles
 const DXVK_DLLS: &[&str] = &["d3d9", "d3d10core", "d3d11", "dxgi"];
@@ -8,7 +8,9 @@ const DXVK_DLLS: &[&str] = &["d3d9", "d3d10core", "d3d11", "dxgi"];
 /// Check if DXVK is installed in a bottle
 pub fn is_installed(bottle_dir: &Path) -> bool {
     let sys32 = bottle_dir.join("drive_c/windows/system32");
-    DXVK_DLLS.iter().all(|dll| sys32.join(format!("{}.dll", dll)).exists())
+    DXVK_DLLS
+        .iter()
+        .all(|dll| sys32.join(format!("{}.dll", dll)).exists())
 }
 
 /// Install DXVK into a bottle from a DXVK directory (containing x64/ and x32/ subdirs)
@@ -84,7 +86,7 @@ pub async fn download_and_extract(url: &str, data_dir: &Path) -> Result<PathBuf>
     let dxvk_dir = data_dir.join("dxvk");
     std::fs::create_dir_all(&dxvk_dir)?;
 
-    let archive_name = url.split('/').last().unwrap_or("dxvk.tar.gz");
+    let archive_name = url.split('/').next_back().unwrap_or("dxvk.tar.gz");
     let archive_path = dxvk_dir.join(archive_name);
 
     let response = reqwest::get(url)
@@ -92,10 +94,17 @@ pub async fn download_and_extract(url: &str, data_dir: &Path) -> Result<PathBuf>
         .map_err(|e| Error::Download(e.to_string()))?;
 
     if !response.status().is_success() {
-        return Err(Error::Download(format!("HTTP {}: {}", response.status(), url)));
+        return Err(Error::Download(format!(
+            "HTTP {}: {}",
+            response.status(),
+            url
+        )));
     }
 
-    let bytes = response.bytes().await.map_err(|e| Error::Download(e.to_string()))?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| Error::Download(e.to_string()))?;
     std::fs::write(&archive_path, &bytes)?;
 
     // Snapshot existing directories before extraction
@@ -130,7 +139,8 @@ pub async fn download_and_extract(url: &str, data_dir: &Path) -> Result<PathBuf>
 /// Get the environment variables needed for DXVK DLL overrides
 pub fn env_overrides() -> std::collections::HashMap<String, String> {
     let mut env = std::collections::HashMap::new();
-    let overrides = DXVK_DLLS.iter()
+    let overrides = DXVK_DLLS
+        .iter()
         .map(|dll| format!("{}=n", dll))
         .collect::<Vec<_>>()
         .join(";");

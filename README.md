@@ -1,82 +1,33 @@
 # OpenGameCore
 
-A macOS Wine game launcher written in Rust — clean UI, fast bottle cloning, and DXVK out of the box.
-
-<!-- TODO: Add screenshot -->
+A macOS-native Wine game launcher written in Rust. Manage Windows games with per-game bottles, DXVK integration, and a built-in compatibility database — all from a clean native UI or the `ogc` CLI.
 
 ## Features
 
 - **Wine management** — auto-discover, download, and switch between multiple Wine builds
 - **APFS bottle cloning** — near-instant per-game Wine prefixes via `clonefile`
-- **DXVK integration** — toggle DirectX→Vulkan→Metal translation per game
+- **DXVK integration** — toggle DirectX-to-Vulkan-to-Metal translation per game
 - **Game library** — TOML-based storage with import/export and cover art support
-- **Data safety** — atomic writes, automatic backups, and crash recovery
-- **Process monitoring** — log capture, running state tracking, and crash detection
-- **CLI companion** — full `ogc` CLI for scripting and automation
-- **Game compatibility database** — built-in ratings from ProtonDB, WineHQ, and CrossOver data
+- **Compatibility database** — built-in ratings for popular games (Platinum/Gold/Silver/Bronze/Borked)
 - **Steam/GOG auto-detection** — scan installed games and show compatibility at a glance
-- **One-click bundles** — pre-configured settings for popular games (Wine backend, env vars, workarounds)
+- **One-click bundles** — pre-configured Wine settings for popular games
+- **Data safety** — atomic writes, automatic backups, and crash recovery
+- **CLI companion** — full `ogc` CLI for scripting and automation
 
 ## Requirements
 
-- macOS 12 Monterey or later
-- Wine (via Homebrew or bundled build)
-- Rust 1.75+ (only for building from source)
+- macOS 12 Monterey or later (Apple Silicon recommended)
+- Rust 1.75+ (for building from source)
 
-## Installation
-
-### Download (Recommended)
-
-Download the latest `.dmg` from [Releases](https://github.com/your-org/opengamecore/releases):
-- **Apple Silicon (M1/M2/M3):** `OpenGameCore-x.x.x-macOS-arm64.dmg`
-- **Intel:** `OpenGameCore-x.x.x-macOS-x86_64.dmg`
-
-Open the DMG and drag OpenGameCore to Applications.
-
-The CLI tool `ogc` is bundled inside the app at `OpenGameCore.app/Contents/MacOS/ogc`. To use it from Terminal:
+## Build from Source
 
 ```sh
-# Option 1: Alias
-alias ogc="/Applications/OpenGameCore.app/Contents/MacOS/ogc"
-
-# Option 2: Symlink
-sudo ln -s /Applications/OpenGameCore.app/Contents/MacOS/ogc /usr/local/bin/ogc
-```
-
-### Homebrew
-
-```sh
-brew tap your-org/opengamecore
-brew install opengamecore
-```
-
-### Build from Source
-
-Requires Rust 1.75+:
-
-```sh
-git clone https://github.com/your-org/opengamecore.git
-cd opengamecore
-make release
-make install  # copies to /usr/local/bin
-```
-
-Or create a .app bundle:
-
-```sh
-./scripts/bundle-macos.sh
-# Output: target/release/OpenGameCore.app and .dmg
-```
-
-## Quick Start
-
-```sh
-git clone https://github.com/your-org/opengamecore.git
+git clone https://github.com/rzgrw/opengamecore.git
 cd opengamecore
 cargo build --release
 ```
 
-Run the GUI app:
+Run the GUI:
 
 ```sh
 cargo run -p opengamecore-app --release
@@ -90,89 +41,85 @@ cargo run -p opengamecore-cli --release -- --help
 
 ## CLI Usage
 
-The `ogc` command provides full access to your game library from the terminal.
-
 ```sh
-# List all games
-ogc list
+# Library management
+ogc list                          # List all games
+ogc add -n "Game" -e /path/to.exe # Add a game
+ogc remove my-game                # Remove a game
+ogc run my-game                   # Launch a game
+ogc run my-game --dxvk            # Launch with DXVK
 
-# Add a game
-ogc add "Game Name" /path/to/game.exe
+# Bottles and Wine
+ogc bottles                       # List bottles
+ogc reset-bottle my-game          # Reset a game's bottle
+ogc wine                          # List Wine installations
 
-# Run a game
-ogc run "Game Name"
-
-# Show game details
-ogc info "Game Name"
-
-# Manage bottles
-ogc bottles
-ogc reset-bottle "Game Name"
-
-# Wine passthrough
-ogc wine -- winecfg
-
-# Import / export library
+# Import / export
 ogc export library.toml
 ogc import library.toml
 
-# Remove a game
-ogc remove "Game Name"
+# Compatibility database
+ogc database                      # List all rated games
+ogc database "cyberpunk"          # Search by name
+ogc database --rating gold        # Filter by rating
 
-# Detect installed Steam/GOG games
-ogc detect
+# Auto-detection
+ogc detect                        # Scan Steam/GOG for installed games
 
-# Search the compatibility database
-ogc database "cyberpunk"
-ogc database --rating gold
-
-# Auto-configure a game from its bundle
+# One-click setup from bundle
 ogc setup stardew-valley --path ~/Games/StardewValley
-```
 
-## How It Works
-
-**Wine bottles** — each game gets its own isolated Wine prefix so settings, registry entries, and DLLs never bleed between titles.
-
-**APFS cloning** — new bottles are created with macOS `clonefile`, making copies near-instant and space-efficient (copy-on-write at the filesystem level).
-
-**TOML config** — the game library and all settings are stored as plain TOML files. No database, no binary formats — easy to inspect, back up, or version control.
-
-## Configuration
-
-All data lives under `~/Library/Application Support/OpenGameCore/`:
-
-```
-~/Library/Application Support/OpenGameCore/
-├── config.toml          # App settings
-├── library.toml         # Game library
-├── bottles/             # Per-game Wine prefixes
-│   └── <game-id>/
-├── logs/                # Per-game Wine logs
-└── backups/             # Auto-generated backups
+# Info
+ogc info                          # Show app directories
 ```
 
 ## Game Compatibility
 
-OpenGameCore ships with a compatibility database covering popular Windows games on macOS. Each game has a rating (Platinum/Gold/Silver/Bronze/Borked) and recommended settings.
+OpenGameCore ships with a compatibility database rating popular Windows games on macOS. Each game has a rating, recommended Wine backend, and optional pre-configured bundle.
 
-**Browse the database:**
-- In the app: click "Game Database" in the sidebar
-- CLI: `ogc database` or `ogc database "search term"`
+| Rating | Meaning |
+|--------|---------|
+| Platinum | Works perfectly out of the box |
+| Gold | Playable with minor tweaks |
+| Silver | Playable with workarounds |
+| Bronze | Runs but has significant issues |
+| Borked | Does not work |
 
-**Auto-detect installed games:**
-- CLI: `ogc detect` scans Steam and GOG libraries
-- App: the first-run wizard automatically detects installed games
+**Browse:** In the app sidebar click "Game Database", or run `ogc database` in the CLI.
 
-**Set up a game from a bundle:**
-- CLI: `ogc setup stardew-valley --path /path/to/game`
-- App: use the "Add" button in the Game Database view
+**Auto-detect:** The first-run wizard scans Steam and GOG automatically. Or run `ogc detect`.
 
-**Submit a compatibility report:**
-Open a [Discussion](https://github.com/your-org/opengamecore/discussions/new?category=compatibility-report) with your game, macOS version, chip, and rating.
+**One-click setup:** Games with bundles can be configured in one step — the bundle sets the correct Wine backend, environment variables, and workarounds.
 
-**Contribute a bundle:**
-Add a TOML file to `data/bundles/` with the game's recommended settings and open a PR. See existing bundles for the format.
+### Contributing compatibility data
+
+**Report a game:** Open a [Discussion](https://github.com/rzgrw/opengamecore/discussions/new?category=compatibility-report) with your game name, macOS version, chip, backend, and rating.
+
+**Add a bundle:** Create a TOML file in `data/bundles/` matching the format of existing bundles, and open a PR. CI will validate the format automatically.
+
+## Architecture
+
+```
+opengamecore-lib/     # Core library — config, bottles, Wine, compat DB, bundles
+opengamecore-app/     # iced GUI application
+opengamecore-cli/     # ogc CLI tool
+data/
+  compatibility.json  # Game compatibility database
+  bundles/            # Per-game TOML configs
+```
+
+All user data lives under `~/Library/Application Support/OpenGameCore/`:
+
+```
+config.toml           # App settings
+games.toml            # Game library
+compatibility.json    # Cached compat database
+bottles/              # Per-game Wine prefixes
+wine/                 # Wine installations
+icons/                # Game icons
+logs/                 # Game run logs
+bundles/              # Bundle configs
+```
 
 ## Contributing
 
@@ -185,4 +132,4 @@ Please keep PRs focused. Bug fixes and well-scoped features are welcome. For lar
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT

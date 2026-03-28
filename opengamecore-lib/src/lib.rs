@@ -2,6 +2,7 @@ pub mod bottle;
 pub mod bundle;
 pub mod compat;
 pub mod config;
+pub mod data_update;
 pub mod dxvk;
 pub mod error;
 pub mod fs_utils;
@@ -9,7 +10,6 @@ pub mod library;
 pub mod paths;
 pub mod runner;
 pub mod store_detect;
-pub mod data_update;
 pub mod wine;
 
 pub use bundle::BundleConfig;

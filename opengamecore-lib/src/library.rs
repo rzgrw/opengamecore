@@ -49,7 +49,11 @@ impl GameLibrary {
     pub fn load(path: &Path) -> Result<Self> {
         // Try to restore from backup if file is missing or corrupt
         if let Err(e) = crate::fs_utils::restore_from_backup(path) {
-            eprintln!("Warning: failed to restore backup for {}: {}", path.display(), e);
+            eprintln!(
+                "Warning: failed to restore backup for {}: {}",
+                path.display(),
+                e
+            );
         }
 
         if path.exists() {
@@ -77,7 +81,8 @@ impl GameLibrary {
     pub fn add(&mut self, game: Game) -> Result<()> {
         if self.find(&game.slug).is_some() {
             return Err(Error::GameNotFound(format!(
-                "Game with slug '{}' already exists", game.slug
+                "Game with slug '{}' already exists",
+                game.slug
             )));
         }
         self.games.push(game);
@@ -102,7 +107,9 @@ impl GameLibrary {
     }
 
     pub fn recently_played(&self) -> Vec<&Game> {
-        let mut played: Vec<&Game> = self.games.iter()
+        let mut played: Vec<&Game> = self
+            .games
+            .iter()
             .filter(|g| g.last_played.is_some())
             .collect();
         played.sort_by(|a, b| b.last_played.cmp(&a.last_played));
@@ -139,9 +146,7 @@ pub fn import_library(existing: &mut GameLibrary, path: &std::path::Path) -> Res
 pub fn set_game_icon(slug: &str, source: &std::path::Path) -> Result<std::path::PathBuf> {
     let icons_dir = crate::paths::icons_dir()?;
     std::fs::create_dir_all(&icons_dir)?;
-    let ext = source.extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("png");
+    let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("png");
     let dest = icons_dir.join(format!("{}.{}", slug, ext));
     std::fs::copy(source, &dest)?;
     Ok(dest)

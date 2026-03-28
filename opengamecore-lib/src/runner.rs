@@ -20,7 +20,9 @@ pub struct LaunchConfig {
 impl LaunchConfig {
     /// Check if this launch uses Apple Game Porting Toolkit.
     pub fn is_gptk(&self) -> bool {
-        self.wine_binary.to_string_lossy().contains("game-porting-toolkit")
+        self.wine_binary
+            .to_string_lossy()
+            .contains("game-porting-toolkit")
     }
 
     pub fn new(
@@ -118,9 +120,11 @@ pub async fn run_and_capture(config: &LaunchConfig, slug: &str) -> Result<RunRes
         .await
         .map_err(|e| Error::Process(format!("Failed waiting for process: {}", e)))?;
 
-    let stdout_text = stdout_handle.await
+    let stdout_text = stdout_handle
+        .await
         .unwrap_or_else(|e| format!("[stdout reader panicked: {}]", e));
-    let stderr_text = stderr_handle.await
+    let stderr_text = stderr_handle
+        .await
         .unwrap_or_else(|e| format!("[stderr reader panicked: {}]", e));
 
     let duration = start.elapsed();
@@ -174,10 +178,7 @@ mod tests {
 
         assert_eq!(config.env.get("WINEDEBUG").unwrap(), "-all");
         assert_eq!(config.env.get("DXVK_HUD").unwrap(), "1");
-        assert_eq!(
-            config.exe,
-            PathBuf::from("/bottles/game/drive_c/game.exe")
-        );
+        assert_eq!(config.exe, PathBuf::from("/bottles/game/drive_c/game.exe"));
         assert_eq!(config.prefix, PathBuf::from("/bottles/game"));
     }
 

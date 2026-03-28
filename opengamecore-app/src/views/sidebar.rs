@@ -5,35 +5,29 @@ use crate::app::{Message, Screen};
 use crate::theme;
 
 pub fn view(current: &Screen) -> Element<'static, Message> {
-    let header = text("OpenGameCore")
-        .size(20)
-        .color(theme::ACCENT);
+    let header = text("OpenGameCore").size(20).color(theme::ACCENT);
 
     let nav_button = |label: &str, screen: Screen, is_active: bool| -> Element<'static, Message> {
         let label = label.to_string();
-        let btn = button(
-            text(label)
-                .size(14)
-                .color(if is_active {
-                    theme::ACCENT
-                } else {
-                    theme::TEXT_PRIMARY
-                }),
-        )
+        let btn = button(text(label).size(14).color(if is_active {
+            theme::ACCENT
+        } else {
+            theme::TEXT_PRIMARY
+        }))
         .on_press(Message::NavigateTo(screen))
         .width(Length::Fill)
         .padding([8, 16])
-        .style(move |_theme, _status| {
-            button::Style {
-                background: if is_active {
-                    Some(Background::Color(iced::Color::from_rgba(1.0, 1.0, 1.0, 0.05)))
-                } else {
-                    None
-                },
-                text_color: theme::TEXT_PRIMARY,
-                border: Border::default().rounded(4),
-                ..button::Style::default()
-            }
+        .style(move |_theme, _status| button::Style {
+            background: if is_active {
+                Some(Background::Color(iced::Color::from_rgba(
+                    1.0, 1.0, 1.0, 0.05,
+                )))
+            } else {
+                None
+            },
+            text_color: theme::TEXT_PRIMARY,
+            border: Border::default().rounded(4),
+            ..button::Style::default()
         });
 
         btn.into()

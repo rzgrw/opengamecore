@@ -108,9 +108,10 @@ pub fn delete(bottle_dir: &Path) -> Result<()> {
 pub fn reset(template_dir: &Path, bottle_dir: &Path) -> Result<()> {
     // Back up the user.reg file if it exists (contains app-specific settings)
     let user_reg = bottle_dir.join("user.reg");
-    let user_reg_backup = bottle_dir.with_file_name(
-        format!("{}.user.reg.bak", bottle_dir.file_name().unwrap_or_default().to_string_lossy())
-    );
+    let user_reg_backup = bottle_dir.with_file_name(format!(
+        "{}.user.reg.bak",
+        bottle_dir.file_name().unwrap_or_default().to_string_lossy()
+    ));
     if user_reg.exists() {
         std::fs::copy(&user_reg, &user_reg_backup)?;
     }

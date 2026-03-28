@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use crate::error::Result;
+use std::path::{Path, PathBuf};
 
 /// Write to a file atomically: write to a temp file, then rename.
 /// This prevents data corruption from crashes mid-write.
@@ -63,7 +63,10 @@ mod tests {
         let path = dir.path().join("test.toml");
         std::fs::write(&path, "original").unwrap();
         backup(&path).unwrap();
-        assert_eq!(std::fs::read_to_string(path.with_extension("bak")).unwrap(), "original");
+        assert_eq!(
+            std::fs::read_to_string(path.with_extension("bak")).unwrap(),
+            "original"
+        );
     }
 
     #[test]

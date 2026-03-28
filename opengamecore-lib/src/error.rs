@@ -62,9 +62,7 @@ impl Error {
                 format!("Download failed: {}. Check your internet connection.", msg)
             }
             Error::Process(msg) => format!("Process error: {}. The game may have crashed.", msg),
-            Error::JsonParse(_) => {
-                "Failed to parse JSON data file. It may be corrupted.".into()
-            }
+            Error::JsonParse(_) => "Failed to parse JSON data file. It may be corrupted.".into(),
         }
     }
 }

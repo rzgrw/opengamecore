@@ -12,17 +12,15 @@ pub fn view<'a>(games: &'a [Game], running_games: &'a HashSet<String>) -> Elemen
     let header = row![
         text("All Games").size(24).color(theme::TEXT_PRIMARY),
         iced::widget::horizontal_space(),
-        button(
-            text("+ Add Game").size(14).color(theme::BUTTON_GREEN_TEXT)
-        )
-        .on_press(Message::OpenAddGame)
-        .padding([8, 16])
-        .style(|_theme, _status| button::Style {
-            background: Some(Background::Color(theme::BUTTON_GREEN)),
-            text_color: theme::BUTTON_GREEN_TEXT,
-            border: Border::default().rounded(6),
-            ..button::Style::default()
-        })
+        button(text("+ Add Game").size(14).color(theme::BUTTON_GREEN_TEXT))
+            .on_press(Message::OpenAddGame)
+            .padding([8, 16])
+            .style(|_theme, _status| button::Style {
+                background: Some(Background::Color(theme::BUTTON_GREEN)),
+                text_color: theme::BUTTON_GREEN_TEXT,
+                border: Border::default().rounded(6),
+                ..button::Style::default()
+            })
     ]
     .align_y(iced::Alignment::Center)
     .spacing(12);
@@ -56,62 +54,54 @@ pub fn view<'a>(games: &'a [Game], running_games: &'a HashSet<String>) -> Elemen
                         })
                         .into()
                 }
-                _ => {
-                    container(text("G").size(20).color(theme::ACCENT))
-                        .width(64)
-                        .height(64)
-                        .center_x(64)
-                        .center_y(64)
-                        .style(|_theme| container::Style {
-                            background: Some(Background::Color(
-                                iced::Color::from_rgba(1.0, 1.0, 1.0, 0.05),
-                            )),
-                            border: Border::default().rounded(8),
-                            ..container::Style::default()
-                        })
-                        .into()
-                }
+                _ => container(text("G").size(20).color(theme::ACCENT))
+                    .width(64)
+                    .height(64)
+                    .center_x(64)
+                    .center_y(64)
+                    .style(|_theme| container::Style {
+                        background: Some(Background::Color(iced::Color::from_rgba(
+                            1.0, 1.0, 1.0, 0.05,
+                        ))),
+                        border: Border::default().rounded(8),
+                        ..container::Style::default()
+                    })
+                    .into(),
             };
 
             let is_gptk = game.wine_config.contains("gptk") || game.use_gptk;
 
-            let mut badge_row = row![
-                text(format!("Wine: {}", &game.wine_config))
-                    .size(12)
-                    .color(theme::TEXT_SECONDARY),
-            ]
+            let mut badge_row = row![text(format!("Wine: {}", &game.wine_config))
+                .size(12)
+                .color(theme::TEXT_SECONDARY),]
             .spacing(6)
             .align_y(iced::Alignment::Center);
 
             if game.dxvk_enabled {
                 badge_row = badge_row.push(
-                    container(
-                        text("DXVK").size(10).color(theme::ACCENT),
-                    )
-                    .padding([2, 6])
-                    .style(|_theme| container::Style {
-                        background: Some(Background::Color(iced::Color::from_rgba(
-                            0.39, 1.0, 0.855, 0.12,
-                        ))),
-                        border: Border::default().rounded(4),
-                        ..container::Style::default()
-                    }),
+                    container(text("DXVK").size(10).color(theme::ACCENT))
+                        .padding([2, 6])
+                        .style(|_theme| container::Style {
+                            background: Some(Background::Color(iced::Color::from_rgba(
+                                0.39, 1.0, 0.855, 0.12,
+                            ))),
+                            border: Border::default().rounded(4),
+                            ..container::Style::default()
+                        }),
                 );
             }
 
             if is_gptk {
                 badge_row = badge_row.push(
-                    container(
-                        text("GPTK").size(10).color(theme::BADGE_GPTK),
-                    )
-                    .padding([2, 6])
-                    .style(|_theme| container::Style {
-                        background: Some(Background::Color(iced::Color::from_rgba(
-                            1.0, 0.76, 0.03, 0.12,
-                        ))),
-                        border: Border::default().rounded(4),
-                        ..container::Style::default()
-                    }),
+                    container(text("GPTK").size(10).color(theme::BADGE_GPTK))
+                        .padding([2, 6])
+                        .style(|_theme| container::Style {
+                            background: Some(Background::Color(iced::Color::from_rgba(
+                                1.0, 0.76, 0.03, 0.12,
+                            ))),
+                            border: Border::default().rounded(4),
+                            ..container::Style::default()
+                        }),
                 );
             }
 
@@ -119,11 +109,9 @@ pub fn view<'a>(games: &'a [Game], running_games: &'a HashSet<String>) -> Elemen
 
             let is_running = running_games.contains(&slug);
             let play_widget: Element<'_, Message> = if is_running {
-                container(
-                    text("Running...").size(14).color(theme::TEXT_SECONDARY),
-                )
-                .padding([8, 20])
-                .into()
+                container(text("Running...").size(14).color(theme::TEXT_SECONDARY))
+                    .padding([8, 20])
+                    .into()
             } else {
                 button(text("Play").size(14).color(theme::BUTTON_GREEN_TEXT))
                     .on_press(Message::PlayGame(slug))

@@ -119,13 +119,11 @@ pub fn detect_gog_games(
 
             // Try to match by fuzzy slug: convert folder name to slug and compare
             let folder_slug = slug::slugify(&folder_name);
-            let compat_entry = compat_db
-                .find_by_slug(&folder_slug)
-                .or_else(|| {
-                    // Also try matching gog_id
-                    let folder_id = folder_name.to_lowercase().replace(' ', "_");
-                    compat_db.find_by_gog_id(&folder_id)
-                });
+            let compat_entry = compat_db.find_by_slug(&folder_slug).or_else(|| {
+                // Also try matching gog_id
+                let folder_id = folder_name.to_lowercase().replace(' ', "_");
+                compat_db.find_by_gog_id(&folder_id)
+            });
 
             games.push(DetectedGame {
                 name: folder_name,
@@ -146,8 +144,7 @@ pub fn detect_installed_games(compat_db: &CompatDatabase) -> Result<Vec<Detected
 
     // Steam: ~/Library/Application Support/Steam/steamapps/
     if let Some(home) = dirs::home_dir() {
-        let steamapps = home
-            .join("Library/Application Support/Steam/steamapps");
+        let steamapps = home.join("Library/Application Support/Steam/steamapps");
         all.extend(detect_steam_games(&steamapps, compat_db)?);
     }
 
