@@ -1,4 +1,5 @@
 pub mod bottle;
+pub mod bundle;
 pub mod compat;
 pub mod config;
 pub mod dxvk;
@@ -9,6 +10,7 @@ pub mod paths;
 pub mod runner;
 pub mod wine;
 
+pub use bundle::BundleConfig;
 pub use compat::{CompatDatabase, CompatEntry, CompatRating};
 pub use config::{AppConfig, WineConfig};
 pub use error::{Error, Result};
