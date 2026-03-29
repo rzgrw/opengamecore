@@ -302,6 +302,11 @@ impl App {
                         }
                     }
                 }
+
+                // Auto-detect installed Steam/GOG games
+                if self.compat_db.is_some() && !first_run {
+                    return Task::done(Message::DetectGames);
+                }
             }
 
             // Add Game
@@ -1075,7 +1080,11 @@ impl App {
         let sidebar = views::sidebar::view(&self.screen);
 
         let screen_content: Element<'_, Message> = match self.screen {
-            Screen::Library => views::game_grid::view(&self.library.games, &self.running_games),
+            Screen::Library => views::game_grid::view(
+                &self.library.games,
+                &self.running_games,
+                &self.detected_games,
+            ),
             Screen::Database => views::game_database::view(
                 self.compat_db.as_ref(),
                 &self.db_search_query,
