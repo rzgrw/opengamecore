@@ -808,13 +808,7 @@ impl App {
                     status: "Starting download...".into(),
                 };
 
-                let url = self
-                    .config
-                    .wine
-                    .download_urls
-                    .first()
-                    .cloned()
-                    .unwrap_or_default();
+                let urls = self.config.wine.download_urls.clone();
 
                 return Task::perform(
                     async move {
@@ -823,10 +817,33 @@ impl App {
                             Err(e) => return Err(e.to_string()),
                         };
 
-                        let extracted =
-                            opengamecore_lib::wine::download_and_extract(&url, &wine_dir)
-                                .await
-                                .map_err(|e| e.to_string())?;
+                        if urls.is_empty() {
+                            return Err("No Wine download URLs configured. Check Settings.".into());
+                        }
+
+                        // Try each URL until one succeeds
+                        let mut last_err = String::new();
+                        let mut extracted = None;
+                        for url in &urls {
+                            match opengamecore_lib::wine::download_and_extract(url, &wine_dir).await
+                            {
+                                Ok(path) => {
+                                    extracted = Some(path);
+                                    break;
+                                }
+                                Err(e) => {
+                                    last_err = format!("{} ({})", e, url);
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if extracted.is_none() {
+                            return Err(format!(
+                                "All download URLs failed. Last error: {}",
+                                last_err
+                            ));
+                        }
 
                         // Find the wine binary in extracted dir
                         let configs = opengamecore_lib::wine::discover(&wine_dir)
