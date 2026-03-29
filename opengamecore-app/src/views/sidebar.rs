@@ -34,15 +34,13 @@ pub fn view(current: &Screen) -> Element<'static, Message> {
     };
 
     let is_library = matches!(current, Screen::Library);
-    let is_database = matches!(current, Screen::Database);
-    let is_bottles = matches!(current, Screen::Bottles);
+    let is_install = matches!(current, Screen::InstallGame);
     let is_settings = matches!(current, Screen::Settings);
 
     let content = column![
         header,
-        nav_button("All Games", Screen::Library, is_library),
-        nav_button("Game Database", Screen::Database, is_database),
-        nav_button("Bottles", Screen::Bottles, is_bottles),
+        nav_button("My Games", Screen::Library, is_library),
+        nav_button("Install a Game", Screen::InstallGame, is_install),
         nav_button("Settings", Screen::Settings, is_settings),
     ]
     .spacing(8)

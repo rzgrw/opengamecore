@@ -14,21 +14,7 @@ pub fn view<'a>(
     running_games: &'a HashSet<String>,
     detected_games: &'a [DetectedGame],
 ) -> Element<'a, Message> {
-    let header = row![
-        text("All Games").size(24).color(theme::TEXT_PRIMARY),
-        iced::widget::horizontal_space(),
-        button(text("+ Add Game").size(14).color(theme::BUTTON_GREEN_TEXT))
-            .on_press(Message::OpenAddGame)
-            .padding([8, 16])
-            .style(|_theme, _status| button::Style {
-                background: Some(Background::Color(theme::BUTTON_GREEN)),
-                text_color: theme::BUTTON_GREEN_TEXT,
-                border: Border::default().rounded(6),
-                ..button::Style::default()
-            })
-    ]
-    .align_y(iced::Alignment::Center)
-    .spacing(12);
+    let header = text("My Games").size(24).color(theme::TEXT_PRIMARY);
 
     let has_games = !games.is_empty();
 
@@ -48,7 +34,7 @@ pub fn view<'a>(
         let empty = container(
             column![
                 text("No games yet").size(18).color(theme::TEXT_SECONDARY),
-                text("Click \"+ Add Game\" to get started")
+                text("Go to \"Install a Game\" to get started")
                     .size(14)
                     .color(theme::TEXT_SECONDARY),
             ]
@@ -126,53 +112,16 @@ fn game_card<'a>(game: &'a Game, running_games: &'a HashSet<String>) -> Element<
             .into(),
     };
 
-    let is_gptk = game.wine_config.contains("gptk") || game.use_gptk;
-
-    let mut badge_row = row![text(format!("Wine: {}", &game.wine_config))
-        .size(12)
-        .color(theme::TEXT_SECONDARY),]
-    .spacing(6)
-    .align_y(iced::Alignment::Center);
-
-    if game.dxvk_enabled {
-        badge_row = badge_row.push(
-            container(text("DXVK").size(10).color(theme::ACCENT))
-                .padding([2, 6])
-                .style(|_theme| container::Style {
-                    background: Some(Background::Color(iced::Color::from_rgba(
-                        0.39, 1.0, 0.855, 0.12,
-                    ))),
-                    border: Border::default().rounded(4),
-                    ..container::Style::default()
-                }),
-        );
-    }
-
-    if is_gptk {
-        badge_row = badge_row.push(
-            container(text("GPTK").size(10).color(theme::BADGE_GPTK))
-                .padding([2, 6])
-                .style(|_theme| container::Style {
-                    background: Some(Background::Color(iced::Color::from_rgba(
-                        1.0, 0.76, 0.03, 0.12,
-                    ))),
-                    border: Border::default().rounded(4),
-                    ..container::Style::default()
-                }),
-        );
-    }
-
-    let wine_row: Element<'_, Message> = badge_row.into();
-
     let is_running = running_games.contains(&slug);
-    let slug_for_remove = slug.clone();
+    let slug_for_play = slug.clone();
+    let slug_for_remove = slug;
     let play_widget: Element<'_, Message> = if is_running {
         container(text("Running...").size(14).color(theme::TEXT_SECONDARY))
             .padding([8, 20])
             .into()
     } else {
         button(text("Play").size(14).color(theme::BUTTON_GREEN_TEXT))
-            .on_press(Message::PlayGame(slug))
+            .on_press(Message::PlayGame(slug_for_play))
             .padding([8, 20])
             .style(|_theme, _status| button::Style {
                 background: Some(Background::Color(theme::BUTTON_GREEN)),
@@ -198,11 +147,7 @@ fn game_card<'a>(game: &'a Game, running_games: &'a HashSet<String>) -> Element<
     container(
         row![
             icon_widget,
-            column![
-                text(&game.name).size(16).color(theme::TEXT_PRIMARY),
-                wine_row,
-            ]
-            .spacing(4),
+            text(&game.name).size(16).color(theme::TEXT_PRIMARY),
             iced::widget::horizontal_space(),
             play_widget,
             remove_btn,
@@ -226,23 +171,6 @@ fn detected_card(detected: &DetectedGame) -> Element<'_, Message> {
         opengamecore_lib::store_detect::GameStore::Gog => "GOG",
     };
 
-    let rating_text = detected
-        .rating
-        .as_ref()
-        .map(|r| r.label().to_string())
-        .unwrap_or_else(|| "Unknown".to_string());
-
-    let rating_color = detected
-        .rating
-        .as_ref()
-        .map_or(theme::TEXT_SECONDARY, |r| match r {
-            opengamecore_lib::CompatRating::Platinum => iced::Color::from_rgb(0.0, 0.85, 0.45),
-            opengamecore_lib::CompatRating::Gold => iced::Color::from_rgb(1.0, 0.84, 0.0),
-            opengamecore_lib::CompatRating::Silver => iced::Color::from_rgb(0.75, 0.75, 0.75),
-            opengamecore_lib::CompatRating::Bronze => iced::Color::from_rgb(0.8, 0.5, 0.2),
-            opengamecore_lib::CompatRating::Borked => iced::Color::from_rgb(0.9, 0.2, 0.2),
-        });
-
     let icon = container(
         text(store_label.chars().next().unwrap_or('?'))
             .size(20)
@@ -262,26 +190,13 @@ fn detected_card(detected: &DetectedGame) -> Element<'_, Message> {
 
     let info = column![
         text(&detected.name).size(16).color(theme::TEXT_PRIMARY),
-        row![
-            text(store_label).size(12).color(theme::TEXT_SECONDARY),
-            container(text(rating_text.clone()).size(10).color(rating_color))
-                .padding([2, 6])
-                .style(move |_theme| container::Style {
-                    background: Some(Background::Color(iced::Color::from_rgba(
-                        1.0, 1.0, 1.0, 0.05,
-                    ))),
-                    border: Border::default().rounded(4),
-                    ..container::Style::default()
-                }),
-        ]
-        .spacing(8)
-        .align_y(iced::Alignment::Center),
+        text(store_label).size(12).color(theme::TEXT_SECONDARY),
     ]
     .spacing(4);
 
     let slug = opengamecore_lib::library::slugify(&detected.name);
     let action: Element<'_, Message> = if detected.bundle_available {
-        button(text("Set Up").size(14).color(theme::BUTTON_GREEN_TEXT))
+        button(text("Install").size(14).color(theme::BUTTON_GREEN_TEXT))
             .on_press(Message::SetupFromDatabase(slug))
             .padding([8, 16])
             .style(|_theme, _status| button::Style {
@@ -293,7 +208,7 @@ fn detected_card(detected: &DetectedGame) -> Element<'_, Message> {
             .into()
     } else {
         button(text("Add Manually").size(14).color(theme::TEXT_SECONDARY))
-            .on_press(Message::OpenAddGame)
+            .on_press(Message::InstallCustomGame)
             .padding([8, 16])
             .style(|_theme, _status| button::Style {
                 background: Some(Background::Color(iced::Color::from_rgba(
