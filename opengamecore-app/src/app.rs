@@ -47,10 +47,15 @@ pub enum Message {
     RemoveGame(String),
     GameExited(Box<opengamecore_lib::runner::RunResult>),
 
-    // Bottle actions
+    // Bottle / game settings
     ResetBottle(String),
     DeleteBottle(String),
     BottlesLoaded(Vec<BottleInfo>),
+    ChangeWineConfig(String, String), // slug, new wine config name
+    ChangeExePath(String, String),    // slug, new exe path
+    ToggleDxvk(String),               // slug
+    ToggleGptk(String),               // slug
+    OpenInFinder(String),             // slug — open bottle dir in Finder
 
     // Settings / Wine
     SetDefaultWine(String),
@@ -705,6 +710,53 @@ impl App {
             Message::BottlesLoaded(bottles) => {
                 self.bottles = bottles;
             }
+            Message::ChangeWineConfig(slug, wine_name) => {
+                if let Some(game) = self.library.find_mut(&slug) {
+                    game.wine_config = wine_name;
+                    if let Ok(path) = opengamecore_lib::paths::games_path() {
+                        if let Err(e) = self.library.save(&path) {
+                            self.error_message = Some(format!("Failed to save: {}", e));
+                        }
+                    }
+                }
+            }
+            Message::ChangeExePath(slug, exe) => {
+                if let Some(game) = self.library.find_mut(&slug) {
+                    game.exe = exe;
+                    if let Ok(path) = opengamecore_lib::paths::games_path() {
+                        if let Err(e) = self.library.save(&path) {
+                            self.error_message = Some(format!("Failed to save: {}", e));
+                        }
+                    }
+                }
+            }
+            Message::ToggleDxvk(slug) => {
+                if let Some(game) = self.library.find_mut(&slug) {
+                    game.dxvk_enabled = !game.dxvk_enabled;
+                    if let Ok(path) = opengamecore_lib::paths::games_path() {
+                        if let Err(e) = self.library.save(&path) {
+                            self.error_message = Some(format!("Failed to save: {}", e));
+                        }
+                    }
+                }
+            }
+            Message::ToggleGptk(slug) => {
+                if let Some(game) = self.library.find_mut(&slug) {
+                    game.use_gptk = !game.use_gptk;
+                    if let Ok(path) = opengamecore_lib::paths::games_path() {
+                        if let Err(e) = self.library.save(&path) {
+                            self.error_message = Some(format!("Failed to save: {}", e));
+                        }
+                    }
+                }
+            }
+            Message::OpenInFinder(slug) => {
+                if let Ok(bottle) = opengamecore_lib::paths::bottle_dir(&slug) {
+                    if bottle.exists() {
+                        let _ = std::process::Command::new("open").arg(&bottle).spawn();
+                    }
+                }
+            }
 
             // Settings / Wine
             Message::SetDefaultWine(name) => {
@@ -1140,7 +1192,9 @@ impl App {
                 &self.db_search_query,
                 &self.db_filter_rating,
             ),
-            Screen::Bottles => views::bottle_detail::view(&self.bottles),
+            Screen::Bottles => {
+                views::bottle_detail::view(&self.bottles, &self.library, &self.wine_configs)
+            }
             Screen::Settings => views::settings::view(
                 &self.wine_configs,
                 &self.config.wine.download_urls,
