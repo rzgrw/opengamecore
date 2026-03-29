@@ -11,18 +11,24 @@ pub fn view<'a>(
     download_urls: &'a [String],
     default_wine: &'a str,
     dxvk_dir: Option<&'a std::path::Path>,
+    installing_steam: bool,
 ) -> Element<'a, Message> {
     let header = text("Settings").size(24).color(theme::TEXT_PRIMARY);
 
     // Quick Setup section
     let quick_setup_header = text("Quick Setup").size(18).color(theme::TEXT_PRIMARY);
 
-    let install_steam_btn = button(
-        text("Install Steam")
+    let install_steam_label = if installing_steam {
+        "Installing..."
+    } else {
+        "Install Steam"
+    };
+
+    let mut install_steam_btn = button(
+        text(install_steam_label)
             .size(14)
             .color(theme::BUTTON_GREEN_TEXT),
     )
-    .on_press(Message::InstallSteam)
     .padding([8, 16])
     .style(|_theme, _status| button::Style {
         background: Some(Background::Color(theme::BUTTON_GREEN)),
@@ -30,6 +36,10 @@ pub fn view<'a>(
         border: Border::default().rounded(6),
         ..button::Style::default()
     });
+
+    if !installing_steam {
+        install_steam_btn = install_steam_btn.on_press(Message::InstallSteam);
+    }
 
     let quick_setup_desc = text("Download and install Steam into a dedicated Wine bottle.")
         .size(13)

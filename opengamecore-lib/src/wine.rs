@@ -234,16 +234,12 @@ pub async fn install_steam(wine_binary: &Path, bottle_dir: &Path) -> Result<()> 
         .map_err(|e| Error::Download(e.to_string()))?;
     std::fs::write(&setup_path, &bytes)?;
 
-    // Run the installer silently
-    let status = std::process::Command::new(wine_binary)
+    // Run the installer and let the user click through it
+    // Steam's installer exits after launching Steam — don't check exit code
+    let _ = std::process::Command::new(wine_binary)
         .arg(&setup_path)
-        .arg("/S") // Silent install
         .env("WINEPREFIX", bottle_dir)
-        .status()?;
-
-    if !status.success() {
-        return Err(Error::Process("Steam installer failed".into()));
-    }
+        .status();
 
     // Clean up installer
     std::fs::remove_file(&setup_path).ok();

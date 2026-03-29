@@ -142,10 +142,12 @@ pub struct App {
     detected_games: Vec<DetectedGame>,
     db_search_query: String,
     db_filter_rating: Option<CompatRating>,
+    installing_steam: bool,
 }
 
 impl App {
     pub fn new() -> (Self, Task<Message>) {
+        log::info!("OpenGameCore starting up");
         let app = Self {
             screen: Screen::Library,
             config: AppConfig::default(),
@@ -163,17 +165,28 @@ impl App {
             detected_games: Vec::new(),
             db_search_query: String::new(),
             db_filter_rating: None,
+            installing_steam: false,
         };
 
         let task = Task::perform(
             async {
                 let mut load_warnings = Vec::new();
+                log::info!("Loading app state...");
 
-                let config = match opengamecore_lib::paths::config_path()
-                    .and_then(|p| AppConfig::load(&p))
-                {
-                    Ok(c) => c,
+                let config = match opengamecore_lib::paths::config_path().and_then(|p| {
+                    log::debug!("Loading config from {:?}", p);
+                    AppConfig::load(&p)
+                }) {
+                    Ok(c) => {
+                        log::info!(
+                            "Config loaded: first_run={}, wine_urls={}",
+                            c.app.first_run_complete,
+                            c.wine.download_urls.len()
+                        );
+                        c
+                    }
                     Err(e) => {
+                        log::error!("Failed to load config: {}", e);
                         load_warnings.push(format!("Failed to load config: {}", e.user_message()));
                         AppConfig::default()
                     }
@@ -182,8 +195,12 @@ impl App {
                 let library = match opengamecore_lib::paths::games_path()
                     .and_then(|p| GameLibrary::load(&p))
                 {
-                    Ok(l) => l,
+                    Ok(l) => {
+                        log::info!("Library loaded: {} games", l.games.len());
+                        l
+                    }
                     Err(e) => {
+                        log::error!("Failed to load library: {}", e);
                         load_warnings.push(format!("Failed to load library: {}", e.user_message()));
                         GameLibrary::default()
                     }
@@ -192,8 +209,15 @@ impl App {
                 let wine_configs = match opengamecore_lib::paths::wine_dir()
                     .and_then(|p| opengamecore_lib::wine::discover(&p))
                 {
-                    Ok(c) => c,
+                    Ok(c) => {
+                        log::info!("Wine configs found: {}", c.len());
+                        for wc in &c {
+                            log::debug!("  Wine: {} at {}", wc.name, wc.binary_path.display());
+                        }
+                        c
+                    }
                     Err(e) => {
+                        log::error!("Failed to discover Wine: {}", e);
                         load_warnings
                             .push(format!("Failed to discover Wine: {}", e.user_message()));
                         Vec::new()
@@ -203,20 +227,67 @@ impl App {
                 let bottles = match opengamecore_lib::paths::bottles_dir()
                     .and_then(|p| opengamecore_lib::bottle::list(&p))
                 {
-                    Ok(b) => b,
+                    Ok(b) => {
+                        log::info!("Bottles found: {}", b.len());
+                        b
+                    }
                     Err(e) => {
+                        log::error!("Failed to list bottles: {}", e);
                         load_warnings.push(format!("Failed to list bottles: {}", e.user_message()));
                         Vec::new()
                     }
                 };
 
-                let compat_db = opengamecore_lib::paths::compat_db_path()
-                    .and_then(|p| CompatDatabase::load(&p))
-                    .ok();
+                let compat_db = {
+                    // Try app support dir first
+                    let from_app = opengamecore_lib::paths::compat_db_path()
+                        .and_then(|p| CompatDatabase::load(&p))
+                        .ok();
 
-                let bundles = match opengamecore_lib::paths::bundles_dir() {
-                    Ok(p) => opengamecore_lib::bundle::load_bundles(&p).unwrap_or_default(),
-                    Err(_) => HashMap::new(),
+                    if let Some(db) = from_app {
+                        log::info!(
+                            "Compat DB loaded from app support: {} games",
+                            db.games.len()
+                        );
+                        Some(db)
+                    } else {
+                        // Fall back to repo data/ dir (for development)
+                        match CompatDatabase::load(std::path::Path::new("data/compatibility.json"))
+                        {
+                            Ok(db) => {
+                                log::info!(
+                                    "Compat DB loaded from repo data/: {} games",
+                                    db.games.len()
+                                );
+                                Some(db)
+                            }
+                            Err(e) => {
+                                log::warn!("Compat DB not loaded: {}", e);
+                                None
+                            }
+                        }
+                    }
+                };
+
+                let bundles = {
+                    // Try app support dir first
+                    let from_app = opengamecore_lib::paths::bundles_dir()
+                        .ok()
+                        .and_then(|p| opengamecore_lib::bundle::load_bundles(&p).ok())
+                        .unwrap_or_default();
+
+                    if !from_app.is_empty() {
+                        log::info!("Bundles loaded from app support: {}", from_app.len());
+                        from_app
+                    } else {
+                        // Fall back to repo data/bundles/ dir (for development)
+                        let b = opengamecore_lib::bundle::load_bundles(std::path::Path::new(
+                            "data/bundles",
+                        ))
+                        .unwrap_or_default();
+                        log::info!("Bundles loaded from repo data/bundles/: {}", b.len());
+                        b
+                    }
                 };
 
                 // Detect existing DXVK installation
@@ -238,6 +309,8 @@ impl App {
                         None
                     }
                 });
+                log::info!("DXVK dir: {:?}", dxvk_dir);
+                log::info!("Load complete. Warnings: {:?}", load_warnings);
 
                 Box::new(AppState {
                     config,
@@ -265,9 +338,11 @@ impl App {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        log::debug!("Message: {:?}", message);
         match message {
-            Message::ShowError(msg) => {
-                self.error_message = Some(msg);
+            Message::ShowError(ref msg) => {
+                log::warn!("Error shown to user: {}", msg);
+                self.error_message = Some(msg.clone());
             }
             Message::DismissError => {
                 self.error_message = None;
@@ -1133,7 +1208,11 @@ impl App {
 
             // Steam
             Message::InstallSteam => {
+                if self.installing_steam {
+                    return Task::none();
+                }
                 if let Some(wine) = self.wine_configs.first().cloned() {
+                    self.installing_steam = true;
                     let binary_path = wine.binary_path.clone();
                     return Task::perform(
                         async move {
@@ -1151,14 +1230,17 @@ impl App {
                         Some("No Wine installation found. Install Wine first.".into());
                 }
             }
-            Message::SteamInstalled(result) => match result {
-                Ok(()) => {
-                    self.error_message = Some("Steam installed successfully!".into());
+            Message::SteamInstalled(result) => {
+                self.installing_steam = false;
+                match result {
+                    Ok(()) => {
+                        self.error_message = Some("Steam installed successfully!".into());
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to install Steam: {}", e));
+                    }
                 }
-                Err(e) => {
-                    self.error_message = Some(format!("Failed to install Steam: {}", e));
-                }
-            },
+            }
 
             // Data update
             Message::DatabaseUpdated(_) => {}
@@ -1200,6 +1282,7 @@ impl App {
                 &self.config.wine.download_urls,
                 &self.config.wine.default,
                 self.dxvk_dir.as_deref(),
+                self.installing_steam,
             ),
             Screen::FirstRun => unreachable!(),
         };
