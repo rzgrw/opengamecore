@@ -99,6 +99,10 @@ pub enum Message {
     AutoDetectFolder,
     AutoDetectResult(Box<Option<BundleConfig>>),
 
+    // Steam
+    InstallSteam,
+    SteamInstalled(Result<(), String>),
+
     // Data update
     DatabaseUpdated(bool),
 }
@@ -280,6 +284,23 @@ impl App {
                 }
                 if first_run {
                     self.screen = Screen::FirstRun;
+                }
+
+                // Auto-create template bottle if Wine is found but template is missing
+                if !self.wine_configs.is_empty() {
+                    if let Ok(template) = opengamecore_lib::paths::template_bottle_dir() {
+                        if !template.join("system.reg").exists() {
+                            if let Err(e) = opengamecore_lib::bottle::ensure_template(
+                                &self.wine_configs[0].binary_path,
+                                &template,
+                            ) {
+                                if self.error_message.is_none() {
+                                    self.error_message =
+                                        Some(format!("Failed to create template bottle: {}", e));
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -846,7 +867,18 @@ impl App {
                 {
                     Ok(configs) if !configs.is_empty() => {
                         self.config.wine.default = configs[0].name.clone();
-                        self.wine_configs = configs;
+                        self.wine_configs = configs.clone();
+
+                        // Ensure template bottle exists after Wine is configured
+                        if let Ok(template) = opengamecore_lib::paths::template_bottle_dir() {
+                            if let Err(e) = opengamecore_lib::bottle::ensure_template(
+                                &configs[0].binary_path,
+                                &template,
+                            ) {
+                                self.error_message =
+                                    Some(format!("Failed to create template bottle: {}", e));
+                            }
+                        }
                     }
                     Ok(_) => {
                         self.error_message = Some(
@@ -991,6 +1023,35 @@ impl App {
                     state.matched_bundle = *bundle;
                 }
             }
+
+            // Steam
+            Message::InstallSteam => {
+                if let Some(wine) = self.wine_configs.first().cloned() {
+                    let binary_path = wine.binary_path.clone();
+                    return Task::perform(
+                        async move {
+                            let bottles_dir = opengamecore_lib::paths::bottles_dir()
+                                .map_err(|e| e.to_string())?;
+                            let steam_bottle = bottles_dir.join("steam");
+                            opengamecore_lib::wine::install_steam(&binary_path, &steam_bottle)
+                                .await
+                                .map_err(|e| e.to_string())
+                        },
+                        Message::SteamInstalled,
+                    );
+                } else {
+                    self.error_message =
+                        Some("No Wine installation found. Install Wine first.".into());
+                }
+            }
+            Message::SteamInstalled(result) => match result {
+                Ok(()) => {
+                    self.error_message = Some("Steam installed successfully!".into());
+                }
+                Err(e) => {
+                    self.error_message = Some(format!("Failed to install Steam: {}", e));
+                }
+            },
 
             // Data update
             Message::DatabaseUpdated(_) => {}

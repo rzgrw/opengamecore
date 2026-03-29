@@ -196,6 +196,67 @@ pub async fn download_and_extract(url: &str, wine_dir: &Path) -> Result<PathBuf>
     Ok(new_dir)
 }
 
+/// Download and install Steam into a Wine bottle.
+pub async fn install_steam(wine_binary: &Path, bottle_dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(bottle_dir)?;
+
+    // Initialize the bottle if it doesn't exist
+    if !bottle_dir.join("system.reg").exists() {
+        let status = std::process::Command::new(wine_binary)
+            .arg("wineboot")
+            .arg("--init")
+            .env("WINEPREFIX", bottle_dir)
+            .status()?;
+        if !status.success() {
+            return Err(Error::Process(
+                "Failed to initialize Wine bottle for Steam".into(),
+            ));
+        }
+    }
+
+    // Download SteamSetup.exe
+    let setup_path = bottle_dir.join("SteamSetup.exe");
+    let response =
+        reqwest::get("https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe")
+            .await
+            .map_err(|e| Error::Download(format!("Failed to download Steam installer: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(Error::Download(format!(
+            "Steam download failed: HTTP {}",
+            response.status()
+        )));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| Error::Download(e.to_string()))?;
+    std::fs::write(&setup_path, &bytes)?;
+
+    // Run the installer silently
+    let status = std::process::Command::new(wine_binary)
+        .arg(&setup_path)
+        .arg("/S") // Silent install
+        .env("WINEPREFIX", bottle_dir)
+        .status()?;
+
+    if !status.success() {
+        return Err(Error::Process("Steam installer failed".into()));
+    }
+
+    // Clean up installer
+    std::fs::remove_file(&setup_path).ok();
+
+    // Strip quarantine from the bottle
+    let _ = std::process::Command::new("xattr")
+        .args(["-rd", "com.apple.quarantine"])
+        .arg(bottle_dir)
+        .status();
+
+    Ok(())
+}
+
 /// Resolve which WineConfig to use given a config name.
 pub fn resolve(configs: &[WineConfig], name: &str) -> Result<WineConfig> {
     if name == "default" || name.is_empty() {

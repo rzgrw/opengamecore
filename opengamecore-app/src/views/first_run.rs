@@ -218,6 +218,20 @@ pub fn view(phase: &FirstRunPhase) -> Element<'_, Message> {
 
             let detail = text(msg).size(14).color(theme::TEXT_SECONDARY);
 
+            let retry_btn = button(
+                text("Retry Download")
+                    .size(14)
+                    .color(theme::BUTTON_GREEN_TEXT),
+            )
+            .on_press(Message::StartFirstRun)
+            .padding([10, 24])
+            .style(|_theme, _status| button::Style {
+                background: Some(Background::Color(theme::BUTTON_GREEN)),
+                text_color: theme::BUTTON_GREEN_TEXT,
+                border: Border::default().rounded(6),
+                ..button::Style::default()
+            });
+
             let settings_btn = button(text("Go to Settings").size(14).color(theme::TEXT_PRIMARY))
                 .on_press(Message::NavigateTo(crate::app::Screen::Settings))
                 .padding([10, 24])
@@ -230,7 +244,7 @@ pub fn view(phase: &FirstRunPhase) -> Element<'_, Message> {
                     ..button::Style::default()
                 });
 
-            column![title, detail, settings_btn]
+            column![title, detail, retry_btn, settings_btn]
                 .spacing(16)
                 .align_x(iced::Alignment::Center)
                 .into()

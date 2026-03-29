@@ -103,6 +103,9 @@ enum Commands {
         rating: Option<String>,
     },
 
+    /// Install Steam inside a Wine bottle
+    InstallSteam,
+
     /// Auto-configure a game from its bundle
     Setup {
         /// Game slug from the database
@@ -140,6 +143,7 @@ async fn main() {
         Commands::Export { path } => cmd_export(&path),
         Commands::Import { path } => cmd_import(&path),
         Commands::Info => cmd_info(),
+        Commands::InstallSteam => cmd_install_steam().await,
         Commands::Detect => cmd_detect(),
         Commands::Database { query, rating } => cmd_database(&query, rating.as_deref()),
         Commands::Setup { slug, path } => cmd_setup(&slug, path.as_deref()),
@@ -599,6 +603,51 @@ fn load_compat_db() -> compat::CompatDatabase {
                 e.user_message(),
                 db_path.display()
             );
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    }
+}
+
+async fn cmd_install_steam() {
+    let wine_dir = match paths::wine_dir() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error resolving wine dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    };
+
+    let wine_configs = match wine::discover(&wine_dir) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Error discovering Wine installations: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    };
+
+    let wine_config = match wine_configs.first() {
+        Some(c) => c,
+        None => {
+            eprintln!("No Wine installation found. Install Wine first.");
+            std::process::exit(EXIT_USER_ERROR);
+        }
+    };
+
+    let bottles_dir = match paths::bottles_dir() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error resolving bottles dir: {}", e.user_message());
+            std::process::exit(EXIT_SYSTEM_ERROR);
+        }
+    };
+
+    let steam_bottle = bottles_dir.join("steam");
+    println!("Installing Steam into {}...", steam_bottle.display());
+
+    match wine::install_steam(&wine_config.binary_path, &steam_bottle).await {
+        Ok(()) => println!("Steam installed successfully!"),
+        Err(e) => {
+            eprintln!("Failed to install Steam: {}", e.user_message());
             std::process::exit(EXIT_SYSTEM_ERROR);
         }
     }

@@ -8,6 +8,45 @@ use crate::config::WineConfig;
 use crate::dxvk;
 use crate::error::{Error, Result};
 
+/// Wait for wineserver to finish for a given prefix.
+/// This handles apps like Steam that spawn child processes.
+async fn wait_for_wineserver(wine_binary: &Path, prefix: &Path) {
+    // wineserver binary is next to wine binary
+    let wineserver = wine_binary
+        .parent()
+        .map(|p| p.join("wineserver"))
+        .unwrap_or_else(|| PathBuf::from("wineserver"));
+
+    // wineserver --wait blocks until the server exits
+    let _ = Command::new(&wineserver)
+        .arg("--wait")
+        .env("WINEPREFIX", prefix)
+        .status()
+        .await;
+}
+
+/// Spawn a Wine process without waiting for it to exit.
+/// Useful for launching apps that manage their own lifecycle (Steam, etc.)
+pub fn spawn_detached(config: &LaunchConfig) -> Result<()> {
+    if !config.wine_binary.exists() {
+        return Err(Error::WineNotFound(format!(
+            "Binary not found: {}",
+            config.wine_binary.display()
+        )));
+    }
+
+    std::process::Command::new(&config.wine_binary)
+        .arg(&config.exe)
+        .env("WINEPREFIX", &config.prefix)
+        .envs(&config.env)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| Error::Process(format!("Failed to spawn Wine: {}", e)))?;
+
+    Ok(())
+}
+
 /// Everything needed to launch a game.
 #[derive(Debug, Clone)]
 pub struct LaunchConfig {
@@ -119,6 +158,9 @@ pub async fn run_and_capture(config: &LaunchConfig, slug: &str) -> Result<RunRes
         .wait()
         .await
         .map_err(|e| Error::Process(format!("Failed waiting for process: {}", e)))?;
+
+    // Wait for wineserver to fully exit (handles apps that respawn like Steam)
+    wait_for_wineserver(&config.wine_binary, &config.prefix).await;
 
     let stdout_text = stdout_handle
         .await

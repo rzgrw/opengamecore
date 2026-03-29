@@ -14,6 +14,29 @@ pub fn view<'a>(
 ) -> Element<'a, Message> {
     let header = text("Settings").size(24).color(theme::TEXT_PRIMARY);
 
+    // Quick Setup section
+    let quick_setup_header = text("Quick Setup").size(18).color(theme::TEXT_PRIMARY);
+
+    let install_steam_btn = button(
+        text("Install Steam")
+            .size(14)
+            .color(theme::BUTTON_GREEN_TEXT),
+    )
+    .on_press(Message::InstallSteam)
+    .padding([8, 16])
+    .style(|_theme, _status| button::Style {
+        background: Some(Background::Color(theme::BUTTON_GREEN)),
+        text_color: theme::BUTTON_GREEN_TEXT,
+        border: Border::default().rounded(6),
+        ..button::Style::default()
+    });
+
+    let quick_setup_desc = text("Download and install Steam into a dedicated Wine bottle.")
+        .size(13)
+        .color(theme::TEXT_SECONDARY);
+
+    let quick_setup_section = column![quick_setup_desc, install_steam_btn].spacing(8);
+
     // Library section
     let library_header = text("Library").size(18).color(theme::TEXT_PRIMARY);
 
@@ -227,6 +250,8 @@ pub fn view<'a>(
     let dxvk_section = column![dxvk_status_text, download_dxvk_btn,].spacing(8);
 
     let content = column![
+        quick_setup_header,
+        quick_setup_section,
         library_header,
         library_section,
         wine_header,

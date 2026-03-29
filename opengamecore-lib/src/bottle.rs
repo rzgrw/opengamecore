@@ -60,6 +60,14 @@ pub fn create_template(wine_binary: &Path, template_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Ensure the template bottle exists. Creates it if missing.
+pub fn ensure_template(wine_binary: &Path, template_dir: &Path) -> Result<()> {
+    if template_dir.join("system.reg").exists() {
+        return Ok(()); // Template already initialized
+    }
+    create_template(wine_binary, template_dir)
+}
+
 /// Create a new bottle by cloning the template.
 pub fn create(template_dir: &Path, bottle_dir: &Path) -> Result<()> {
     if !template_dir.exists() {
