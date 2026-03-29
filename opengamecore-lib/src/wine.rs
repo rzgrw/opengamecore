@@ -82,10 +82,40 @@ fn gptk_env_overrides() -> HashMap<String, String> {
 
 /// Search a Wine installation directory for the wine binary.
 fn find_wine_binary(dir: &Path) -> Option<PathBuf> {
+    // Direct bin/ paths
     for candidate in &["bin/wine64", "bin/wine"] {
         let p = dir.join(candidate);
         if p.exists() {
             return Some(p);
+        }
+    }
+    // macOS .app bundle: dir itself is a .app (e.g. Wine Devel.app)
+    if dir.extension().is_some_and(|e| e == "app") {
+        for candidate in &[
+            "Contents/Resources/wine/bin/wine64",
+            "Contents/Resources/wine/bin/wine",
+        ] {
+            let p = dir.join(candidate);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+    // Search for .app bundles inside this directory
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "app") {
+                for candidate in &[
+                    "Contents/Resources/wine/bin/wine64",
+                    "Contents/Resources/wine/bin/wine",
+                ] {
+                    let p = path.join(candidate);
+                    if p.exists() {
+                        return Some(p);
+                    }
+                }
+            }
         }
     }
     // Search one level of subdirectories (for archives like wine-9.0/bin/wine)
