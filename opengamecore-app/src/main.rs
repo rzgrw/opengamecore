@@ -5,6 +5,7 @@ mod views;
 use app::App;
 
 fn main() -> iced::Result {
+    env_logger::init();
     iced::application(App::title, App::update, App::view)
         .theme(App::theme)
         .window(iced::window::Settings {
