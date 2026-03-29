@@ -44,6 +44,7 @@ pub enum Message {
 
     // Game actions
     PlayGame(String),
+    RemoveGame(String),
     GameExited(Box<opengamecore_lib::runner::RunResult>),
 
     // Bottle actions
@@ -549,6 +550,38 @@ impl App {
             }
 
             // Game actions
+            Message::RemoveGame(slug) => {
+                self.running_games.remove(&slug);
+                if let Err(e) = self.library.remove(&slug) {
+                    self.error_message = Some(format!("Failed to remove game: {}", e));
+                } else {
+                    // Save library
+                    if let Ok(path) = opengamecore_lib::paths::games_path() {
+                        if let Err(e) = self.library.save(&path) {
+                            self.error_message = Some(format!("Failed to save library: {}", e));
+                        }
+                    }
+                    // Delete bottle
+                    if let Ok(bottle) = opengamecore_lib::paths::bottle_dir(&slug) {
+                        if bottle.exists() {
+                            if let Err(e) = opengamecore_lib::bottle::delete(&bottle) {
+                                self.error_message =
+                                    Some(format!("Game removed but bottle deletion failed: {}", e));
+                            }
+                        }
+                    }
+                }
+                // Reload bottles
+                return Task::perform(
+                    async {
+                        opengamecore_lib::paths::bottles_dir()
+                            .ok()
+                            .and_then(|p| opengamecore_lib::bottle::list(&p).ok())
+                            .unwrap_or_default()
+                    },
+                    Message::BottlesLoaded,
+                );
+            }
             Message::PlayGame(slug) => {
                 if let Some(game) = self.library.find(&slug) {
                     let wine =

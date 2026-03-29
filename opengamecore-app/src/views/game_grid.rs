@@ -165,6 +165,7 @@ fn game_card<'a>(game: &'a Game, running_games: &'a HashSet<String>) -> Element<
     let wine_row: Element<'_, Message> = badge_row.into();
 
     let is_running = running_games.contains(&slug);
+    let slug_for_remove = slug.clone();
     let play_widget: Element<'_, Message> = if is_running {
         container(text("Running...").size(14).color(theme::TEXT_SECONDARY))
             .padding([8, 20])
@@ -182,6 +183,18 @@ fn game_card<'a>(game: &'a Game, running_games: &'a HashSet<String>) -> Element<
             .into()
     };
 
+    let remove_btn = button(text("X").size(12).color(theme::TEXT_SECONDARY))
+        .on_press(Message::RemoveGame(slug_for_remove))
+        .padding([6, 10])
+        .style(|_theme, _status| button::Style {
+            background: Some(Background::Color(iced::Color::from_rgba(
+                1.0, 0.2, 0.2, 0.15,
+            ))),
+            text_color: theme::TEXT_SECONDARY,
+            border: Border::default().rounded(4),
+            ..button::Style::default()
+        });
+
     container(
         row![
             icon_widget,
@@ -192,6 +205,7 @@ fn game_card<'a>(game: &'a Game, running_games: &'a HashSet<String>) -> Element<
             .spacing(4),
             iced::widget::horizontal_space(),
             play_widget,
+            remove_btn,
         ]
         .spacing(12)
         .align_y(iced::Alignment::Center),
