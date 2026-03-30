@@ -26,14 +26,34 @@ pub fn view<'a>(
 
     if wine_configs.is_empty() {
         wine_list = wine_list.push(
-            text("No Wine installations found")
-                .size(14)
-                .color(theme::TEXT_SECONDARY),
+            column![
+                text("No Wine installations found")
+                    .size(14)
+                    .color(theme::TEXT_SECONDARY),
+                text("Wine is required to run Windows games. Download it below or add a custom path.")
+                    .size(13)
+                    .color(theme::TEXT_SECONDARY),
+                button(
+                    text("Download Wine")
+                        .size(16)
+                        .color(theme::BUTTON_GREEN_TEXT),
+                )
+                .on_press(Message::NavigateTo(crate::app::Screen::FirstRun))
+                .padding([12, 32])
+                .style(|_theme, _status| button::Style {
+                    background: Some(Background::Color(theme::BUTTON_GREEN)),
+                    text_color: theme::BUTTON_GREEN_TEXT,
+                    border: Border::default().rounded(8),
+                    ..button::Style::default()
+                }),
+            ]
+            .spacing(10),
         );
     } else {
         for config in wine_configs {
             let name = config.name.clone();
             let is_default = config.name == default_wine;
+            let path_str = config.binary_path.display().to_string();
 
             let mut set_default_btn = button(
                 text(if is_default { "Default" } else { "Set Default" })
@@ -65,13 +85,17 @@ pub fn view<'a>(
             }
 
             let card = container(
-                row![
-                    text(&config.name).size(15).color(theme::TEXT_PRIMARY),
-                    iced::widget::horizontal_space(),
-                    set_default_btn,
+                column![
+                    row![
+                        text(&config.name).size(15).color(theme::TEXT_PRIMARY),
+                        iced::widget::horizontal_space(),
+                        set_default_btn,
+                    ]
+                    .spacing(8)
+                    .align_y(iced::Alignment::Center),
+                    text(path_str).size(12).color(theme::TEXT_SECONDARY),
                 ]
-                .spacing(8)
-                .align_y(iced::Alignment::Center),
+                .spacing(4),
             )
             .padding(12)
             .width(Length::Fill)

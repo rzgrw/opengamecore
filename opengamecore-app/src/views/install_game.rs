@@ -169,9 +169,15 @@ pub fn view<'a>(
         }
         None => {
             content = content.push(
-                text("Compatibility database not loaded.")
-                    .size(14)
-                    .color(theme::TEXT_SECONDARY),
+                column![
+                    text("Compatibility database is not available.")
+                        .size(15)
+                        .color(theme::TEXT_SECONDARY),
+                    text("You can still add games manually using the section below.")
+                        .size(13)
+                        .color(theme::TEXT_SECONDARY),
+                ]
+                .spacing(6),
             );
         }
     }
@@ -179,11 +185,14 @@ pub fn view<'a>(
     // Custom game section at the bottom
     let custom_header = text("Add Custom Game").size(18).color(theme::TEXT_PRIMARY);
 
-    let custom_desc = text("Have a game folder not in the database? Add it manually.")
-        .size(13)
-        .color(theme::TEXT_SECONDARY);
+    let custom_desc =
+        text("Have a game folder not in the database? Browse to the folder, name it, and confirm.")
+            .size(13)
+            .color(theme::TEXT_SECONDARY);
 
-    let path_display = custom_game_path.as_deref().unwrap_or("No folder selected");
+    let path_display = custom_game_path
+        .as_deref()
+        .unwrap_or("No folder selected \u{2014} click Browse to pick a game folder");
 
     let browse_row = row![
         container(text(path_display).size(13).color(theme::TEXT_SECONDARY))

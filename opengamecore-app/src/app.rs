@@ -69,7 +69,12 @@ pub enum Message {
 
     // Errors
     ShowError(String),
+    ShowSuccess(String),
     DismissError,
+    AutoDismissBanner,
+
+    // Remove confirmation
+    ConfirmRemoveGame(String),
 
     // First Run
     StartFirstRun,
@@ -137,6 +142,8 @@ pub struct App {
     installing_steam: bool,
     custom_game_name: String,
     custom_game_path: Option<String>,
+    pending_remove: Option<String>,
+    banner_is_error: bool,
 }
 
 impl App {
@@ -161,6 +168,8 @@ impl App {
             installing_steam: false,
             custom_game_name: String::new(),
             custom_game_path: None,
+            pending_remove: None,
+            banner_is_error: false,
         };
 
         let task = Task::perform(
@@ -338,11 +347,31 @@ impl App {
             Message::ShowError(ref msg) => {
                 log::warn!("Error shown to user: {}", msg);
                 self.error_message = Some(msg.clone());
+                self.banner_is_error = true;
+            }
+            Message::ShowSuccess(ref msg) => {
+                self.error_message = Some(msg.clone());
+                self.banner_is_error = false;
+                return Task::perform(
+                    async {
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    },
+                    |()| Message::AutoDismissBanner,
+                );
             }
             Message::DismissError => {
                 self.error_message = None;
             }
+            Message::AutoDismissBanner => {
+                if !self.banner_is_error {
+                    self.error_message = None;
+                }
+            }
             Message::NavigateTo(screen) => {
+                if matches!(screen, Screen::FirstRun) {
+                    self.first_run_phase = FirstRunPhase::Welcome;
+                }
+                self.pending_remove = None;
                 self.screen = screen;
             }
             Message::Loaded(state) => {
@@ -358,8 +387,14 @@ impl App {
                 if let Some(warning) = state.load_warnings.first() {
                     self.error_message = Some(warning.clone());
                 }
-                if first_run {
+                if first_run && self.wine_configs.is_empty() {
                     self.screen = Screen::FirstRun;
+                } else if first_run {
+                    // Wine already present — mark first run complete and skip wizard
+                    self.config.app.first_run_complete = true;
+                    if let Ok(path) = opengamecore_lib::paths::config_path() {
+                        let _ = self.config.save(&path);
+                    }
                 }
 
                 // Auto-create template bottle if Wine is found but template is missing
@@ -520,6 +555,19 @@ impl App {
                 );
             }
 
+            // Remove confirmation
+            Message::ConfirmRemoveGame(ref slug) => {
+                if self.pending_remove.as_deref() == Some(slug) {
+                    // Second click — actually remove
+                    let slug = slug.clone();
+                    self.pending_remove = None;
+                    return Task::done(Message::RemoveGame(slug));
+                } else {
+                    // First click — mark pending
+                    self.pending_remove = Some(slug.clone());
+                }
+            }
+
             // Game actions
             Message::RemoveGame(slug) => {
                 self.running_games.remove(&slug);
@@ -554,6 +602,12 @@ impl App {
                 );
             }
             Message::PlayGame(slug) => {
+                if self.wine_configs.is_empty() {
+                    self.error_message =
+                        Some("No Wine installed. Go to Settings to download Wine.".into());
+                    self.banner_is_error = true;
+                    return Task::none();
+                }
                 if let Some(game) = self.library.find(&slug) {
                     let wine =
                         opengamecore_lib::wine::resolve(&self.wine_configs, &game.wine_config);
@@ -849,7 +903,10 @@ impl App {
             }
             Message::ImportLibraryPath(None) => {}
             Message::LibraryImported(count) => {
-                self.error_message = Some(format!("Successfully imported {} game(s).", count));
+                return Task::done(Message::ShowSuccess(format!(
+                    "Successfully imported {} game(s).",
+                    count
+                )));
             }
 
             // First Run
@@ -989,7 +1046,7 @@ impl App {
                 return Task::perform(
                     async move {
                         let handle = rfd::AsyncFileDialog::new()
-                            .set_title("Select game folder")
+                            .set_title("Select the folder containing the game files")
                             .pick_folder()
                             .await;
                         let path = handle.map(|h| h.path().to_string_lossy().to_string());
@@ -1123,10 +1180,13 @@ impl App {
                 self.installing_steam = false;
                 match result {
                     Ok(()) => {
-                        self.error_message = Some("Steam installed successfully!".into());
+                        return Task::done(Message::ShowSuccess(
+                            "Steam installed successfully!".into(),
+                        ));
                     }
                     Err(e) => {
                         self.error_message = Some(format!("Failed to install Steam: {}", e));
+                        self.banner_is_error = true;
                     }
                 }
             }
@@ -1157,6 +1217,8 @@ impl App {
                 &self.library.games,
                 &self.running_games,
                 &self.detected_games,
+                self.pending_remove.as_deref(),
+                self.wine_configs.is_empty(),
             ),
             Screen::InstallGame => views::install_game::view(
                 self.compat_db.as_ref(),
@@ -1177,8 +1239,14 @@ impl App {
             Screen::FirstRun => unreachable!(),
         };
 
-        // Wrap main content with optional error banner
+        // Wrap main content with optional error/success banner
         let main_content: Element<'_, Message> = if let Some(ref msg) = self.error_message {
+            let is_error = self.banner_is_error;
+            let banner_bg = if is_error {
+                iced::Color::from_rgb(0.8, 0.2, 0.15)
+            } else {
+                iced::Color::from_rgb(0.1, 0.55, 0.35)
+            };
             let error_text = text(msg.clone()).size(14).color(iced::Color::WHITE);
             let dismiss_btn = button(text("X").size(14).color(iced::Color::WHITE))
                 .on_press(Message::DismissError)
@@ -1197,8 +1265,8 @@ impl App {
             )
             .width(Length::Fill)
             .padding([8, 16])
-            .style(|_theme| container::Style {
-                background: Some(Background::Color(iced::Color::from_rgb(0.8, 0.2, 0.15))),
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(banner_bg)),
                 ..container::Style::default()
             });
 

@@ -13,6 +13,8 @@ pub fn view<'a>(
     games: &'a [Game],
     running_games: &'a HashSet<String>,
     detected_games: &'a [DetectedGame],
+    pending_remove: Option<&'a str>,
+    no_wine: bool,
 ) -> Element<'a, Message> {
     let header = text("My Games").size(24).color(theme::TEXT_PRIMARY);
 
@@ -54,9 +56,47 @@ pub fn view<'a>(
 
     let mut all_cards = column![].spacing(12);
 
+    if no_wine {
+        all_cards = all_cards.push(
+            container(
+                row![
+                    text("No Wine installed.")
+                        .size(14)
+                        .color(iced::Color::from_rgb(1.0, 0.85, 0.4)),
+                    button(text("Go to Settings").size(14).color(theme::ACCENT))
+                        .on_press(Message::NavigateTo(crate::app::Screen::Settings))
+                        .padding([6, 14])
+                        .style(|_theme, _status| button::Style {
+                            background: Some(iced::Background::Color(iced::Color::from_rgba(
+                                1.0, 1.0, 1.0, 0.08,
+                            ))),
+                            text_color: theme::ACCENT,
+                            border: iced::Border::default().rounded(4),
+                            ..button::Style::default()
+                        })
+                ]
+                .spacing(12)
+                .align_y(iced::Alignment::Center),
+            )
+            .padding([10, 16])
+            .width(Length::Fill)
+            .style(|_theme| container::Style {
+                background: Some(Background::Color(iced::Color::from_rgba(
+                    1.0, 0.7, 0.0, 0.08,
+                ))),
+                border: iced::Border {
+                    color: iced::Color::from_rgba(1.0, 0.7, 0.0, 0.25),
+                    width: 1.0,
+                    radius: 6.0.into(),
+                },
+                ..container::Style::default()
+            }),
+        );
+    }
+
     // Library games
     for game in games {
-        all_cards = all_cards.push(game_card(game, running_games));
+        all_cards = all_cards.push(game_card(game, running_games, pending_remove));
     }
 
     // Detected games section
@@ -84,7 +124,11 @@ pub fn view<'a>(
         .into()
 }
 
-fn game_card<'a>(game: &'a Game, running_games: &'a HashSet<String>) -> Element<'a, Message> {
+fn game_card<'a>(
+    game: &'a Game,
+    running_games: &'a HashSet<String>,
+    pending_remove: Option<&'a str>,
+) -> Element<'a, Message> {
     let slug = game.slug.clone();
     let icon_widget: Element<'_, Message> = match &game.icon_path {
         Some(path) if std::path::Path::new(path).exists() => {
@@ -114,15 +158,16 @@ fn game_card<'a>(game: &'a Game, running_games: &'a HashSet<String>) -> Element<
 
     let is_running = running_games.contains(&slug);
     let slug_for_play = slug.clone();
-    let slug_for_remove = slug;
+    let slug_for_remove = slug.clone();
+    let is_pending_remove = pending_remove == Some(slug.as_str());
     let play_widget: Element<'_, Message> = if is_running {
         container(text("Running...").size(14).color(theme::TEXT_SECONDARY))
-            .padding([8, 20])
+            .padding([10, 28])
             .into()
     } else {
-        button(text("Play").size(14).color(theme::BUTTON_GREEN_TEXT))
+        button(text("Play").size(16).color(theme::BUTTON_GREEN_TEXT))
             .on_press(Message::PlayGame(slug_for_play))
-            .padding([8, 20])
+            .padding([10, 28])
             .style(|_theme, _status| button::Style {
                 background: Some(Background::Color(theme::BUTTON_GREEN)),
                 text_color: theme::BUTTON_GREEN_TEXT,
@@ -132,14 +177,26 @@ fn game_card<'a>(game: &'a Game, running_games: &'a HashSet<String>) -> Element<
             .into()
     };
 
-    let remove_btn = button(text("X").size(12).color(theme::TEXT_SECONDARY))
-        .on_press(Message::RemoveGame(slug_for_remove))
+    let remove_label = if is_pending_remove {
+        "Click again to remove"
+    } else {
+        "X"
+    };
+    let remove_color = if is_pending_remove {
+        iced::Color::from_rgb(1.0, 0.4, 0.4)
+    } else {
+        theme::TEXT_SECONDARY
+    };
+    let remove_btn = button(text(remove_label).size(12).color(remove_color))
+        .on_press(Message::ConfirmRemoveGame(slug_for_remove))
         .padding([6, 10])
-        .style(|_theme, _status| button::Style {
-            background: Some(Background::Color(iced::Color::from_rgba(
-                1.0, 0.2, 0.2, 0.15,
-            ))),
-            text_color: theme::TEXT_SECONDARY,
+        .style(move |_theme, _status| button::Style {
+            background: Some(Background::Color(if is_pending_remove {
+                iced::Color::from_rgba(1.0, 0.2, 0.2, 0.3)
+            } else {
+                iced::Color::from_rgba(1.0, 0.2, 0.2, 0.15)
+            })),
+            text_color: remove_color,
             border: Border::default().rounded(4),
             ..button::Style::default()
         });
